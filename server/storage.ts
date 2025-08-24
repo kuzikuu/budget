@@ -113,9 +113,9 @@ export class MemStorage implements IStorage {
       { 
         id: "crypto1", 
         householdId: defaultHousehold.id, 
-        symbol: "BTC", 
-        name: "Bitcoin", 
-        amount: "0.5", 
+        symbol: "XRP", 
+        name: "XRP", 
+        amount: "1000", 
         platform: "Coinbase",
         createdAt: new Date(),
         updatedAt: new Date()
@@ -123,10 +123,10 @@ export class MemStorage implements IStorage {
       { 
         id: "crypto2", 
         householdId: defaultHousehold.id, 
-        symbol: "ETH", 
-        name: "Ethereum", 
-        amount: "2.5", 
-        platform: "Binance",
+        symbol: "TOBY", 
+        name: "$TOBY", 
+        amount: "50000", 
+        platform: "DEX",
         createdAt: new Date(),
         updatedAt: new Date()
       },

@@ -225,12 +225,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const symbolToCoinGeckoId: Record<string, string> = {
         'BTC': 'bitcoin',
         'ETH': 'ethereum',
+        'XRP': 'ripple',
         'ADA': 'cardano',
         'DOT': 'polkadot',
         'LINK': 'chainlink',
         'UNI': 'uniswap',
         'AAVE': 'aave',
-        'COMP': 'compound-governance-token'
+        'COMP': 'compound-governance-token',
+        'TOBY': 'dogelon-mars' // Using a similar meme coin for $TOBY since it may not be on CoinGecko
       };
 
       const coinIds = holdings.map(h => symbolToCoinGeckoId[h.symbol]).filter(Boolean);
