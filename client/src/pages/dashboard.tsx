@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import BudgetProgress from "@/components/budget-progress";
 import ExpenseForm from "@/components/expense-form";
 import ReceiptScanner from "@/components/receipt-scanner";
+import CryptoPortfolio from "@/components/crypto-portfolio";
 import { useState } from "react";
 
 const HOUSEHOLD_ID = "default-household"; // In a real app, this would come from authentication
@@ -129,6 +130,9 @@ export default function Dashboard() {
 
         {/* Budget Progress by Category */}
         <BudgetProgress categories={categoryProgress} />
+
+        {/* Crypto Portfolio */}
+        <CryptoPortfolio />
 
         {/* Recent Expenses & Receipt Scanner */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

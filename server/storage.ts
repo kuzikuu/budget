@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Household, type InsertHousehold, type Category, type InsertCategory, type Budget, type InsertBudget, type Expense, type InsertExpense, type Receipt, type InsertReceipt } from "@shared/schema";
+import { type User, type InsertUser, type Household, type InsertHousehold, type Category, type InsertCategory, type Budget, type InsertBudget, type Expense, type InsertExpense, type Receipt, type InsertReceipt, type CryptoHolding, type InsertCryptoHolding } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -31,6 +31,12 @@ export interface IStorage {
   // Receipts
   createReceipt(receipt: InsertReceipt): Promise<Receipt>;
   getReceiptsByExpense(expenseId: string): Promise<Receipt[]>;
+
+  // Crypto Holdings
+  getCryptoHoldings(householdId: string): Promise<CryptoHolding[]>;
+  createCryptoHolding(holding: InsertCryptoHolding): Promise<CryptoHolding>;
+  updateCryptoHolding(id: string, holding: Partial<InsertCryptoHolding>): Promise<CryptoHolding | undefined>;
+  deleteCryptoHolding(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -40,6 +46,7 @@ export class MemStorage implements IStorage {
   private budgets: Map<string, Budget> = new Map();
   private expenses: Map<string, Expense> = new Map();
   private receipts: Map<string, Receipt> = new Map();
+  private cryptoHoldings: Map<string, CryptoHolding> = new Map();
 
   constructor() {
     this.seedDefaultData();
@@ -99,6 +106,34 @@ export class MemStorage implements IStorage {
     
     defaultBudgets.forEach(budget => {
       this.budgets.set(budget.id, budget);
+    });
+
+    // Create some default crypto holdings
+    const defaultCryptoHoldings = [
+      { 
+        id: "crypto1", 
+        householdId: defaultHousehold.id, 
+        symbol: "BTC", 
+        name: "Bitcoin", 
+        amount: "0.5", 
+        platform: "Coinbase",
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      { 
+        id: "crypto2", 
+        householdId: defaultHousehold.id, 
+        symbol: "ETH", 
+        name: "Ethereum", 
+        amount: "2.5", 
+        platform: "Binance",
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+    ];
+    
+    defaultCryptoHoldings.forEach(holding => {
+      this.cryptoHoldings.set(holding.id, holding);
     });
   }
 
@@ -255,6 +290,43 @@ export class MemStorage implements IStorage {
 
   async getReceiptsByExpense(expenseId: string): Promise<Receipt[]> {
     return Array.from(this.receipts.values()).filter(receipt => receipt.expenseId === expenseId);
+  }
+
+  async getCryptoHoldings(householdId: string): Promise<CryptoHolding[]> {
+    return Array.from(this.cryptoHoldings.values()).filter(holding => holding.householdId === householdId);
+  }
+
+  async createCryptoHolding(insertHolding: InsertCryptoHolding): Promise<CryptoHolding> {
+    const id = randomUUID();
+    const holding: CryptoHolding = { 
+      ...insertHolding, 
+      id, 
+      amount: String(insertHolding.amount),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      householdId: insertHolding.householdId || null,
+      platform: insertHolding.platform || null
+    };
+    this.cryptoHoldings.set(id, holding);
+    return holding;
+  }
+
+  async updateCryptoHolding(id: string, updateData: Partial<InsertCryptoHolding>): Promise<CryptoHolding | undefined> {
+    const holding = this.cryptoHoldings.get(id);
+    if (!holding) return undefined;
+    
+    const updatedHolding = { 
+      ...holding, 
+      ...updateData,
+      amount: updateData.amount ? String(updateData.amount) : holding.amount,
+      updatedAt: new Date()
+    };
+    this.cryptoHoldings.set(id, updatedHolding);
+    return updatedHolding;
+  }
+
+  async deleteCryptoHolding(id: string): Promise<boolean> {
+    return this.cryptoHoldings.delete(id);
   }
 }
 

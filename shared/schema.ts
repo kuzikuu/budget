@@ -57,6 +57,17 @@ export const receipts = pgTable("receipts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const cryptoHoldings = pgTable("crypto_holdings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  householdId: varchar("household_id").references(() => households.id),
+  symbol: text("symbol").notNull(), // BTC, ETH, etc.
+  name: text("name").notNull(), // Bitcoin, Ethereum, etc.
+  amount: decimal("amount", { precision: 18, scale: 8 }).notNull(),
+  platform: text("platform"), // Coinbase, Binance, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertHouseholdSchema = createInsertSchema(households).omit({
   id: true,
@@ -88,6 +99,14 @@ export const insertReceiptSchema = createInsertSchema(receipts).omit({
   createdAt: true,
 });
 
+export const insertCryptoHoldingSchema = createInsertSchema(cryptoHoldings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  amount: z.string().transform((val) => parseFloat(val)),
+});
+
 // Types
 export type Household = typeof households.$inferSelect;
 export type InsertHousehold = z.infer<typeof insertHouseholdSchema>;
@@ -106,3 +125,6 @@ export type InsertExpense = z.infer<typeof insertExpenseSchema>;
 
 export type Receipt = typeof receipts.$inferSelect;
 export type InsertReceipt = z.infer<typeof insertReceiptSchema>;
+
+export type CryptoHolding = typeof cryptoHoldings.$inferSelect;
+export type InsertCryptoHolding = z.infer<typeof insertCryptoHoldingSchema>;

@@ -4,7 +4,7 @@ import multer from "multer";
 import sharp from "sharp";
 import Tesseract from "tesseract.js";
 import { storage } from "./storage";
-import { insertExpenseSchema, insertBudgetSchema, insertCategorySchema } from "@shared/schema";
+import { insertExpenseSchema, insertBudgetSchema, insertCategorySchema, insertCryptoHoldingSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import path from "path";
@@ -211,6 +211,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get crypto holdings with current USD values
+  app.get("/api/crypto/:householdId", async (req, res) => {
+    try {
+      const { householdId } = req.params;
+      const holdings = await storage.getCryptoHoldings(householdId);
+      
+      if (holdings.length === 0) {
+        return res.json([]);
+      }
+
+      // Map crypto symbols to CoinGecko IDs
+      const symbolToCoinGeckoId: Record<string, string> = {
+        'BTC': 'bitcoin',
+        'ETH': 'ethereum',
+        'ADA': 'cardano',
+        'DOT': 'polkadot',
+        'LINK': 'chainlink',
+        'UNI': 'uniswap',
+        'AAVE': 'aave',
+        'COMP': 'compound-governance-token'
+      };
+
+      const coinIds = holdings.map(h => symbolToCoinGeckoId[h.symbol]).filter(Boolean);
+      const prices = await fetchCryptoPrices(coinIds);
+      
+      // Calculate USD values
+      const holdingsWithUsd = holdings.map(holding => {
+        const coinId = symbolToCoinGeckoId[holding.symbol];
+        const priceUsd = prices[coinId] || 0;
+        const usdValue = parseFloat(holding.amount) * priceUsd;
+        
+        return {
+          ...holding,
+          priceUsd,
+          usdValue,
+        };
+      });
+
+      const totalUsdValue = holdingsWithUsd.reduce((sum, h) => sum + h.usdValue, 0);
+
+      res.json({
+        holdings: holdingsWithUsd,
+        totalUsdValue,
+      });
+    } catch (error) {
+      console.error('Error loading crypto holdings:', error);
+      res.status(500).json({ message: "Failed to load crypto holdings" });
+    }
+  });
+
+  // Create crypto holding
+  app.post("/api/crypto", async (req, res) => {
+    try {
+      const holdingData = insertCryptoHoldingSchema.parse(req.body);
+      const holding = await storage.createCryptoHolding(holdingData);
+      res.json(holding);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid crypto holding data", errors: error.errors });
+      } else {
+        res.status(500).json({ message: "Failed to create crypto holding" });
+      }
+    }
+  });
+
+  // Update crypto holding
+  app.put("/api/crypto/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = insertCryptoHoldingSchema.partial().parse(req.body);
+      const holding = await storage.updateCryptoHolding(id, updateData);
+      
+      if (!holding) {
+        return res.status(404).json({ message: "Crypto holding not found" });
+      }
+      
+      res.json(holding);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid crypto holding data", errors: error.errors });
+      } else {
+        res.status(500).json({ message: "Failed to update crypto holding" });
+      }
+    }
+  });
+
+  // Delete crypto holding
+  app.delete("/api/crypto/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteCryptoHolding(id);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Crypto holding not found" });
+      }
+      
+      res.json({ message: "Crypto holding deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete crypto holding" });
+    }
+  });
+
   // Serve uploaded images
   app.use('/uploads', (req, res, next) => {
     const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -286,4 +388,33 @@ function extractReceiptData(ocrText: string) {
   }
 
   return result;
+}
+
+// Fetch crypto prices from CoinGecko API
+async function fetchCryptoPrices(symbols: string[]): Promise<Record<string, number>> {
+  try {
+    const symbolsStr = symbols.join(',');
+    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbolsStr}&vs_currencies=usd`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch crypto prices');
+    }
+    
+    const data = await response.json();
+    
+    // Map symbols to their USD prices
+    const prices: Record<string, number> = {};
+    for (const symbol of symbols) {
+      prices[symbol] = data[symbol]?.usd || 0;
+    }
+    
+    return prices;
+  } catch (error) {
+    console.error('Error fetching crypto prices:', error);
+    // Return fallback prices if API fails
+    return symbols.reduce((acc, symbol) => {
+      acc[symbol] = 0;
+      return acc;
+    }, {} as Record<string, number>);
+  }
 }
