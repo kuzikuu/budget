@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BudgetTogether - Collaborative Expense Tracking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#2563EB',
+                        secondary: '#059669',
+                        accent: '#DC2626',
+                        neutral: '#64748B',
+                        surface: '#F8FAFC',
+                        'surface-variant': '#F1F5F9',
+                    }
+                }
+            }
+        };
+    </script>
+</head>
+<body class="font-inter bg-surface text-slate-800 min-h-screen">
+
+<!-- @COMPONENT: MobileNav [responsive navigation] -->
+<nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                    <i class="fas fa-coins text-white text-sm"></i>
+                </div>
+                <span class="text-xl font-semibold text-slate-800">BudgetTogether</span>
+            </div>
+            
+            <div class="hidden md:flex items-center space-x-8">
+                <a href="#dashboard" class="text-primary font-medium border-b-2 border-primary pb-4">Dashboard</a>
+                <a href="#expenses" class="text-neutral hover:text-slate-800 transition-colors">Expenses</a>
+                <a href="#budgets" class="text-neutral hover:text-slate-800 transition-colors">Budgets</a>
+                <a href="#reports" class="text-neutral hover:text-slate-800 transition-colors">Reports</a>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div class="hidden sm:flex items-center space-x-2 bg-surface-variant px-3 py-2 rounded-lg">
+                    <div class="flex -space-x-2">
+                        <!-- A smiling woman with long brown hair in professional attire -->
+                        <img src="https://pixabay.com/get/g9ca820b17229e92547de0bea36c66f9f848e7170be7b47766d41c0c3cc21e09e83fae348569b501e766a2cb8870af15977cac901e06f6f22ee0b2781f0c72415_1280.jpg" alt="User 1" class="w-8 h-8 rounded-full border-2 border-white" data-mock="true">
+                        <!-- A professional man with short dark hair and friendly smile -->
+                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=crop&w=32&h=32" alt="User 2" class="w-8 h-8 rounded-full border-2 border-white" data-mock="true">
+                    </div>
+                    <span class="text-sm text-neutral" data-bind="household.name">The Johnsons</span>
+                </div>
+                <button class="md:hidden text-neutral">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+<!-- @END_COMPONENT: MobileNav -->
+
+<!-- @COMPONENT: Dashboard [main dashboard view] -->
+<main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    
+    <!-- Budget Overview Cards -->
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- @STATE: monthlyBudget:number, spent:number, remaining:number -->
+        
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm text-neutral">Monthly Budget</span>
+                <i class="fas fa-wallet text-primary"></i>
+            </div>
+            <div class="text-2xl font-semibold text-slate-800" data-bind="budget.monthly">$4,200</div>
+            <div class="text-sm text-secondary mt-1">+2% from last month</div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm text-neutral">Spent This Month</span>
+                <i class="fas fa-credit-card text-accent"></i>
+            </div>
+            <div class="text-2xl font-semibold text-slate-800" data-bind="budget.spent">$2,847</div>
+            <div class="text-sm text-accent mt-1">68% of budget</div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm text-neutral">Remaining</span>
+                <i class="fas fa-piggy-bank text-secondary"></i>
+            </div>
+            <div class="text-2xl font-semibold text-secondary" data-bind="budget.remaining">$1,353</div>
+            <div class="text-sm text-neutral mt-1">32% remaining</div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm text-neutral">Avg. Daily Spend</span>
+                <i class="fas fa-chart-line text-primary"></i>
+            </div>
+            <div class="text-2xl font-semibold text-slate-800" data-bind="budget.dailyAverage">$94.90</div>
+            <div class="text-sm text-secondary mt-1">Under target</div>
+        </div>
+    </section>
+
+    <!-- Quick Actions -->
+    <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">Quick Actions</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button class="flex flex-col items-center p-4 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors" data-event="click:openExpenseForm">
+                <i class="fas fa-plus text-xl mb-2"></i>
+                <span class="text-sm font-medium">Add Expense</span>
+            </button>
+            
+            <button class="flex flex-col items-center p-4 bg-surface-variant text-slate-700 rounded-lg hover:bg-slate-200 transition-colors" data-event="click:openReceiptScanner">
+                <i class="fas fa-camera text-xl mb-2"></i>
+                <span class="text-sm font-medium">Scan Receipt</span>
+            </button>
+            
+            <button class="flex flex-col items-center p-4 bg-surface-variant text-slate-700 rounded-lg hover:bg-slate-200 transition-colors" data-event="click:openBudgetForm">
+                <i class="fas fa-chart-pie text-xl mb-2"></i>
+                <span class="text-sm font-medium">Set Budget</span>
+            </button>
+            
+            <button class="flex flex-col items-center p-4 bg-surface-variant text-slate-700 rounded-lg hover:bg-slate-200 transition-colors" data-event="click:generateReport">
+                <i class="fas fa-download text-xl mb-2"></i>
+                <span class="text-sm font-medium">Export Data</span>
+            </button>
+        </div>
+    </section>
+
+    <!-- Budget Progress by Category -->
+    <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-lg font-semibold text-slate-800">Budget Progress by Category</h2>
+            <select class="text-sm text-neutral border border-gray-200 rounded-lg px-3 py-2">
+                <option>This Month</option>
+                <option>Last Month</option>
+                <option>Last 3 Months</option>
+            </select>
+        </div>
+
+        <!-- @MAP: categories.map(category => ( -->
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-shopping-cart text-primary"></i>
+                    </div>
+                    <div>
+                        <div class="font-medium text-slate-800" data-bind="category.name">Groceries</div>
+                        <div class="text-sm text-neutral" data-bind="category.spent + '/' + category.budget">$680 / $800</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm font-medium text-slate-800" data-bind="category.percentage">85%</div>
+                    <div class="text-xs text-secondary" data-bind="category.remaining">$120 left</div>
+                </div>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-primary h-2 rounded-full" style="width: 85%"></div>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-gas-pump text-secondary"></i>
+                    </div>
+                    <div>
+                        <div class="font-medium text-slate-800">Transportation</div>
+                        <div class="text-sm text-neutral">$340 / $400</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm font-medium text-slate-800">85%</div>
+                    <div class="text-xs text-secondary">$60 left</div>
+                </div>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-secondary h-2 rounded-full" style="width: 85%"></div>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-film text-purple-600"></i>
+                    </div>
+                    <div>
+                        <div class="font-medium text-slate-800">Entertainment</div>
+                        <div class="text-sm text-neutral">$280 / $300</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm font-medium text-slate-800">93%</div>
+                    <div class="text-xs text-accent">$20 left</div>
+                </div>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-purple-600 h-2 rounded-full" style="width: 93%"></div>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-utensils text-orange-600"></i>
+                    </div>
+                    <div>
+                        <div class="font-medium text-slate-800">Dining Out</div>
+                        <div class="text-sm text-neutral">$120 / $200</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm font-medium text-slate-800">60%</div>
+                    <div class="text-xs text-secondary">$80 left</div>
+                </div>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-orange-600 h-2 rounded-full" style="width: 60%"></div>
+            </div>
+        </div>
+        <!-- @END_MAP -->
+    </section>
+
+    <!-- Recent Expenses & Receipt Scanner -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Recent Expenses -->
+        <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-slate-800">Recent Expenses</h2>
+                <button class="text-primary text-sm font-medium hover:underline">View All</button>
+            </div>
+
+            <div class="space-y-4">
+                <!-- @MAP: recentExpenses.map(expense => ( -->
+                <div class="flex items-center justify-between" data-mock="true">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-shopping-bag text-primary"></i>
+                        </div>
+                        <div>
+                            <div class="font-medium text-slate-800" data-bind="expense.description">Whole Foods Market</div>
+                            <div class="text-sm text-neutral flex items-center space-x-2">
+                                <span data-bind="expense.date">Today, 2:30 PM</span>
+                                <span>•</span>
+                                <span data-bind="expense.addedBy">Added by Sarah</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-semibold text-slate-800" data-bind="expense.amount">-$67.42</div>
+                        <div class="text-xs text-neutral" data-bind="expense.category">Groceries</div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between" data-mock="true">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-gas-pump text-secondary"></i>
+                        </div>
+                        <div>
+                            <div class="font-medium text-slate-800">Shell Gas Station</div>
+                            <div class="text-sm text-neutral flex items-center space-x-2">
+                                <span>Yesterday, 8:15 AM</span>
+                                <span>•</span>
+                                <span>Added by Mike</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-semibold text-slate-800">-$45.20</div>
+                        <div class="text-xs text-neutral">Transportation</div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between" data-mock="true">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-film text-purple-600"></i>
+                        </div>
+                        <div>
+                            <div class="font-medium text-slate-800">Netflix Subscription</div>
+                            <div class="text-sm text-neutral flex items-center space-x-2">
+                                <span>2 days ago</span>
+                                <span>•</span>
+                                <span>Auto-categorized</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-semibold text-slate-800">-$15.99</div>
+                        <div class="text-xs text-neutral">Entertainment</div>
+                    </div>
+                </div>
+                <!-- @END_MAP -->
+            </div>
+        </section>
+
+        <!-- Receipt Scanner -->
+        <!-- @STATE: isScanning:boolean = false, extractedData:object = null -->
+        <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 class="text-lg font-semibold text-slate-800 mb-4">Receipt Scanner</h2>
+            
+            <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary transition-colors cursor-pointer" data-event="click:openCamera" data-implementation="Should open camera or file picker for receipt scanning">
+                <!-- @FUNCTIONALITY: This should implement OCR for receipt text extraction -->
+                <!-- Modern smartphone camera taking photo of a grocery receipt on wooden table -->
+                <img src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&h=150" alt="Receipt scanning preview" class="mx-auto mb-4 rounded-lg opacity-60" data-mock="true">
+                
+                <div class="space-y-2">
+                    <i class="fas fa-camera text-3xl text-neutral mb-3"></i>
+                    <div class="font-medium text-slate-800">Scan Receipt</div>
+                    <div class="text-sm text-neutral">Take a photo or upload an image</div>
+                    <button class="mt-4 bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-camera mr-2"></i>Open Camera
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-6 p-4 bg-surface rounded-lg">
+                <div class="flex items-center space-x-2 mb-3">
+                    <i class="fas fa-lightbulb text-secondary"></i>
+                    <span class="text-sm font-medium text-slate-800">Smart Features</span>
+                </div>
+                <ul class="text-sm text-neutral space-y-1">
+                    <li>• Auto-extract amount and date</li>
+                    <li>• Suggest expense categories</li>
+                    <li>• Share with household members</li>
+                    <li>• Store receipt images</li>
+                </ul>
+            </div>
+        </section>
+    </div>
+
+    <!-- Expense Entry Form Modal (Hidden by default) -->
+    <!-- @COMPONENT: ExpenseForm [modal form for adding expenses] -->
+    <div class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden" id="expenseModal" data-state="hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-slate-800">Add New Expense</h3>
+                    <button class="text-neutral hover:text-slate-800" data-event="click:closeModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <form class="space-y-4" data-implementation="Should validate and submit expense data">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Amount</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-3 text-neutral">$</span>
+                            <input type="number" step="0.01" placeholder="0.00" class="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" data-mock="true">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                        <input type="text" placeholder="e.g., Grocery shopping at Whole Foods" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" data-mock="true">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Category</label>
+                        <select class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" data-mock="true">
+                            <option>Select a category</option>
+                            <option>Groceries</option>
+                            <option>Transportation</option>
+                            <option>Entertainment</option>
+                            <option>Dining Out</option>
+                            <option>Utilities</option>
+                            <option>Healthcare</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Date</label>
+                        <input type="date" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" data-mock="true">
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="shared" class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary" data-mock="true">
+                        <label for="shared" class="text-sm text-slate-700">Shared expense</label>
+                    </div>
+
+                    <div class="flex space-x-3 mt-6">
+                        <button type="button" class="flex-1 px-4 py-3 border border-gray-300 text-neutral rounded-lg hover:bg-gray-50 transition-colors" data-event="click:closeModal">
+                            Cancel
+                        </button>
+                        <button type="submit" class="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors" data-event="submit:addExpense">
+                            Add Expense
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: ExpenseForm -->
+
+</main>
+<!-- @END_COMPONENT: Dashboard -->
+
+<!-- Mobile Bottom Navigation -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 z-40">
+    <div class="flex items-center justify-around">
+        <button class="flex flex-col items-center space-y-1 p-2 text-primary">
+            <i class="fas fa-home text-lg"></i>
+            <span class="text-xs font-medium">Home</span>
+        </button>
+        <button class="flex flex-col items-center space-y-1 p-2 text-neutral">
+            <i class="fas fa-receipt text-lg"></i>
+            <span class="text-xs">Expenses</span>
+        </button>
+        <button class="flex flex-col items-center space-y-1 p-2 bg-primary text-white rounded-full w-12 h-12 -mt-4 shadow-lg">
+            <i class="fas fa-plus text-lg"></i>
+        </button>
+        <button class="flex flex-col items-center space-y-1 p-2 text-neutral">
+            <i class="fas fa-chart-pie text-lg"></i>
+            <span class="text-xs">Budgets</span>
+        </button>
+        <button class="flex flex-col items-center space-y-1 p-2 text-neutral">
+            <i class="fas fa-user text-lg"></i>
+            <span class="text-xs">Profile</span>
+        </button>
+    </div>
+</nav>
+
+<script>
+(function() {
+    // TODO: Implement business logic, API calls, or state management
+    
+    // Simple modal toggle functionality for demonstration
+    const expenseModal = document.getElementById('expenseModal');
+    const openModalButtons = document.querySelectorAll('[data-event*="openExpenseForm"]');
+    const closeModalButtons = document.querySelectorAll('[data-event*="closeModal"]');
+    
+    openModalButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            expenseModal.classList.remove('hidden');
+        });
+    });
+    
+    closeModalButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            expenseModal.classList.add('hidden');
+        });
+    });
+    
+    // Close modal on outside click
+    expenseModal.addEventListener('click', (e) => {
+        if (e.target === expenseModal) {
+            expenseModal.classList.add('hidden');
+        }
+    });
+    
+    // Simple form validation demo
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            // TODO: Implement actual form submission and validation
+            console.log('Form submitted - implement actual logic here');
+            expenseModal.classList.add('hidden');
+        });
+    });
+})();
+</script>
+
+</body>
+</html>
