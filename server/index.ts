@@ -39,10 +39,18 @@ app.use((req, res, next) => {
 // For Vercel serverless deployment
 if (process.env.NODE_ENV === "production") {
   // Production: Set up routes and serve static files
-  (async () => {
-    await registerRoutes(app);
-    serveStatic(app);
-  })();
+  // Note: In serverless, we can't use async/await during module initialization
+  // So we'll set up routes synchronously
+  try {
+    // Set up routes without async
+    registerRoutes(app).then(() => {
+      serveStatic(app);
+    }).catch(err => {
+      console.error('Failed to set up routes:', err);
+    });
+  } catch (err) {
+    console.error('Failed to set up routes:', err);
+  }
 } else {
   // Development: Set up Vite dev server
   (async () => {
