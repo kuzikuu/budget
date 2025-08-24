@@ -80,17 +80,42 @@ export class MemStorage implements IStorage {
       const categoryWithHousehold = { ...category, householdId: defaultHousehold.id };
       this.categories.set(category.id, categoryWithHousehold);
     });
+
+    // Create default budgets based on user's actual budget
+    const defaultBudgets = [
+      { id: "budget1", categoryId: "cat1", amount: "800", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget2", categoryId: "cat2", amount: "200", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget3", categoryId: "cat3", amount: "400", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget4", categoryId: "cat4", amount: "300", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget5", categoryId: "cat5", amount: "400", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget6", categoryId: "cat6", amount: "1100", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget7", categoryId: "cat7", amount: "1000", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget8", categoryId: "cat8", amount: "1000", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget9", categoryId: "cat9", amount: "400", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget10", categoryId: "cat10", amount: "225", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget11", categoryId: "cat11", amount: "500", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+      { id: "budget12", categoryId: "cat12", amount: "200", period: "monthly", householdId: defaultHousehold.id, createdAt: new Date() },
+    ];
+    
+    defaultBudgets.forEach(budget => {
+      this.budgets.set(budget.id, budget);
+    });
   }
 
   getDefaultCategories(): Category[] {
     return [
       { id: "cat1", name: "Groceries", icon: "fas fa-shopping-cart", color: "#2563EB", householdId: "" },
-      { id: "cat2", name: "Transportation", icon: "fas fa-gas-pump", color: "#059669", householdId: "" },
-      { id: "cat3", name: "Entertainment", icon: "fas fa-film", color: "#7C3AED", householdId: "" },
-      { id: "cat4", name: "Dining Out", icon: "fas fa-utensils", color: "#EA580C", householdId: "" },
-      { id: "cat5", name: "Utilities", icon: "fas fa-bolt", color: "#DC2626", householdId: "" },
-      { id: "cat6", name: "Healthcare", icon: "fas fa-heartbeat", color: "#DB2777", householdId: "" },
-      { id: "cat7", name: "Other", icon: "fas fa-question", color: "#64748B", householdId: "" },
+      { id: "cat2", name: "Transportation/Maintenance", icon: "fas fa-car", color: "#059669", householdId: "" },
+      { id: "cat3", name: "Utilities", icon: "fas fa-bolt", color: "#DC2626", householdId: "" },
+      { id: "cat4", name: "Healthcare", icon: "fas fa-heartbeat", color: "#DB2777", householdId: "" },
+      { id: "cat5", name: "Personal Expenses", icon: "fas fa-user", color: "#7C3AED", householdId: "" },
+      { id: "cat6", name: "Student Loan", icon: "fas fa-graduation-cap", color: "#F59E0B", householdId: "" },
+      { id: "cat7", name: "Credit Card Payments", icon: "fas fa-credit-card", color: "#EF4444", householdId: "" },
+      { id: "cat8", name: "Savings for House", icon: "fas fa-home", color: "#10B981", householdId: "" },
+      { id: "cat9", name: "Buffer/Emergency", icon: "fas fa-shield-alt", color: "#6B7280", householdId: "" },
+      { id: "cat10", name: "Pilates", icon: "fas fa-dumbbell", color: "#8B5CF6", householdId: "" },
+      { id: "cat11", name: "Mattress", icon: "fas fa-bed", color: "#EC4899", householdId: "" },
+      { id: "cat12", name: "Clothing and Household Items", icon: "fas fa-tshirt", color: "#F97316", householdId: "" },
     ];
   }
 
