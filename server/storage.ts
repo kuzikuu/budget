@@ -115,7 +115,7 @@ export class MemStorage implements IStorage {
         householdId: defaultHousehold.id, 
         symbol: "XRP", 
         name: "XRP", 
-        amount: "1000", 
+        amount: "22000", 
         platform: "Coinbase",
         createdAt: new Date(),
         updatedAt: new Date()
@@ -125,7 +125,7 @@ export class MemStorage implements IStorage {
         householdId: defaultHousehold.id, 
         symbol: "TOBY", 
         name: "$TOBY", 
-        amount: "50000", 
+        amount: "1150000000000", 
         platform: "DEX",
         createdAt: new Date(),
         updatedAt: new Date()
