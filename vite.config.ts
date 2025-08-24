@@ -7,16 +7,12 @@ export default defineConfig({
   plugins: [
     react(),
     runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
-        ]
+    // Only include Replit-specific plugins in development
+    ...(process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
+      ? []
       : []),
   ],
-  base: process.env.NODE_ENV === "production" ? "/" : "/",
+  base: "/",
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
