@@ -151,17 +151,40 @@ async function getFromRedis(key: string, defaultValue: any[] = []) {
 
 async function setToRedis(key: string, data: any) {
   try {
+    console.log(`🔌 setToRedis called for key: ${key}`);
+    console.log(`🔌 Data to save:`, data);
+    console.log(`🔌 Data length: ${data.length}`);
+    
     const connected = await ensureRedisConnection();
+    console.log(`🔌 Redis connection status: ${connected}`);
+    
     if (!connected) {
       console.log(`⚠️ Redis not connected, skipping save for ${key}`);
       return false;
     }
 
-    await redisClient.set(key, JSON.stringify(data));
+    console.log(`🔌 About to save to Redis key: ${key}`);
+    const dataToSave = JSON.stringify(data);
+    console.log(`🔌 JSON string length: ${dataToSave.length}`);
+    
+    await redisClient.set(key, dataToSave);
     console.log(`✅ Data saved to Redis: ${key} (${data.length} items)`);
+    
+    // Double-check by reading it back immediately
+    console.log(`🔍 Double-checking save by reading back...`);
+    const verifyData = await redisClient.get(key);
+    console.log(`🔍 Verification - raw data from Redis:`, verifyData);
+    if (verifyData) {
+      const parsed = JSON.parse(verifyData);
+      console.log(`🔍 Verification - parsed data:`, parsed);
+      console.log(`🔍 Verification - parsed length: ${parsed.length}`);
+    }
+    
     return true;
   } catch (error) {
     console.error(`❌ Failed to save to Redis (${key}):`, error);
+    console.error(`❌ Error details:`, error.message);
+    console.error(`❌ Error stack:`, error.stack);
     return false;
   }
 }
@@ -247,22 +270,32 @@ export default async function handler(req: any, res: any) {
           date: req.body.date
         };
 
+        console.log('🔍 New expense object:', newExpense);
+
         // Get current expenses from Redis
+        console.log('📥 Getting current expenses from Redis...');
         const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES);
         console.log(`📊 Current expenses before adding: ${currentExpenses.length}`);
+        console.log('📊 Current expenses array:', currentExpenses);
         
         // Add new expense
         currentExpenses.push(newExpense);
         console.log(`📊 Expenses after adding: ${currentExpenses.length}`);
+        console.log('📊 Updated expenses array:', currentExpenses);
 
         // Try to save to Redis
+        console.log('💾 Attempting to save to Redis...');
         const saved = await setToRedis(REDIS_KEYS.EXPENSES, currentExpenses);
         console.log(`💾 Expense ${saved ? 'saved to Redis' : 'saved locally'}. Total: ${currentExpenses.length}`);
 
         // Verify the save by reading back from Redis
         if (saved) {
+          console.log('🔍 Verifying save by reading back from Redis...');
           const verifyExpenses = await getFromRedis(REDIS_KEYS.EXPENSES);
           console.log(`🔍 Verification - expenses in Redis after save: ${verifyExpenses.length}`);
+          console.log('🔍 Verification - expenses array:', verifyExpenses);
+        } else {
+          console.log('❌ Save failed - not verifying');
         }
 
         return res.status(201).json(newExpense);
