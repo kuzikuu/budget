@@ -17,20 +17,20 @@ export default async function handler(req: any, res: any) {
     ];
     
     const budgets = [
-      { id: "budget1", categoryId: "cat1", amount: "800", period: "monthly" },
-      { id: "budget2", categoryId: "cat2", amount: "200", period: "monthly" },
-      { id: "budget3", categoryId: "cat3", amount: "400", period: "monthly" },
-      { id: "budget4", categoryId: "cat4", amount: "300", period: "monthly" },
-      { id: "budget5", categoryId: "cat5", amount: "400", period: "monthly" },
-      { id: "budget6", categoryId: "cat6", amount: "1100", period: "monthly" },
-      { id: "budget7", categoryId: "cat7", amount: "1000", period: "monthly" },
-      { id: "budget8", categoryId: "cat8", amount: "1000", period: "monthly" }
+      { id: "budget1", categoryId: "cat1", amount: 800, period: "monthly" },
+      { id: "budget2", categoryId: "cat2", amount: 200, period: "monthly" },
+      { id: "budget3", categoryId: "cat3", amount: 400, period: "monthly" },
+      { id: "budget4", categoryId: "cat4", amount: 300, period: "monthly" },
+      { id: "budget5", categoryId: "cat5", amount: 400, period: "monthly" },
+      { id: "budget6", categoryId: "cat6", amount: 1100, period: "monthly" },
+      { id: "budget7", categoryId: "cat7", amount: 1000, period: "monthly" },
+      { id: "budget8", categoryId: "cat8", amount: 1000, period: "monthly" }
     ];
     
     const expenses = [
-      { id: "exp1", description: "Grocery shopping", amount: "85.50", categoryId: "cat1", date: "2024-01-15" },
-      { id: "exp2", description: "Gas station", amount: "45.00", categoryId: "cat2", date: "2024-01-14" },
-      { id: "exp3", description: "Movie tickets", amount: "32.00", categoryId: "cat4", date: "2024-01-13" }
+      { id: "exp1", description: "Grocery shopping", amount: 85.50, categoryId: "cat1", date: "2024-01-15" },
+      { id: "exp2", description: "Gas station", amount: 45.00, categoryId: "cat2", date: "2024-01-14" },
+      { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
     ];
     
     // Handle all routes simply
