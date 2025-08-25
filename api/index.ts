@@ -28,7 +28,11 @@ export default async function handler(req: any, res: any) {
             { id: "cat5", name: "Health & Fitness", color: "#FFEAA7", householdId },
             { id: "cat6", name: "Housing", color: "#DDA0DD", householdId },
             { id: "cat7", name: "Utilities", color: "#98D8C8", householdId },
-            { id: "cat8", name: "Insurance", color: "#F7DC6F", householdId }
+            { id: "cat8", name: "Insurance", color: "#F7DC6F", householdId },
+            { id: "cat9", name: "Education", color: "#FFB6C1", householdId },
+            { id: "cat10", name: "Travel", color: "#87CEEB", householdId },
+            { id: "cat11", name: "Gifts", color: "#DDA0DD", householdId },
+            { id: "cat12", name: "Miscellaneous", color: "#F0E68C", householdId }
           ],
           budgets: [
             { id: "budget1", categoryId: "cat1", amount: "800", period: "monthly", householdId },
@@ -68,6 +72,9 @@ export default async function handler(req: any, res: any) {
         ];
         
         return res.status(200).json(categories);
+      } else if (method === 'POST') {
+        // Handle creating new categories
+        return res.status(201).json({ message: "Category created successfully" });
       }
     }
     
@@ -89,6 +96,25 @@ export default async function handler(req: any, res: any) {
         ];
         
         return res.status(200).json(budgets);
+      } else if (method === 'POST') {
+        // Handle creating new budgets
+        return res.status(201).json({ message: "Budget created successfully" });
+      }
+    }
+    
+    // Handle budgets route without householdId (for POST requests)
+    if (path === '/budgets') {
+      if (method === 'POST') {
+        console.log('Creating new budget:', req.body);
+        return res.status(201).json({ message: "Budget created successfully" });
+      }
+    }
+    
+    // Handle categories route without householdId (for POST requests)
+    if (path === '/categories') {
+      if (method === 'POST') {
+        console.log('Creating new category:', req.body);
+        return res.status(201).json({ message: "Category created successfully" });
       }
     }
     
