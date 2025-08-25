@@ -178,41 +178,6 @@ function App() {
     }
   };
 
-  const clearAllData = async () => {
-    if (!confirm('Are you sure you want to clear ALL data? This will remove all expenses, categories, and budgets and cannot be undone.')) {
-      return;
-    }
-
-    try {
-      console.log('🗑️ Clearing all data from Redis...');
-      const response = await fetch('/api/clear', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          console.log('✅ All data cleared successfully');
-          // Reset to empty state
-          setCategories([]);
-          setBudgets([]);
-          setExpenses([]);
-          alert('All data has been cleared successfully!');
-        } else {
-          console.log('❌ Failed to clear data');
-          alert('Failed to clear data. Please try again.');
-        }
-      } else {
-        console.log('❌ API failed to clear data');
-        alert('Failed to clear data. Please try again.');
-      }
-    } catch (error) {
-      console.error('❌ Failed to clear data:', error);
-      alert('Failed to clear data. Please try again.');
-    }
-  };
-
   const getCategoryName = (categoryId: string) => {
     return categories.find(cat => cat.id === categoryId)?.name || 'Unknown';
   };
@@ -266,7 +231,6 @@ function App() {
             💾 Data synced across all your devices via Redis
           </div>
         )}
-        <button onClick={clearAllData} className="clear-all-btn">Clear All Data</button>
       </header>
 
       <div className="summary-cards">
