@@ -5,8 +5,11 @@ export default async function handler(req: any, res: any) {
     
     console.log(`${method} ${url}`);
     
-    // Extract the path after /api
-    const path = url.replace('/api', '');
+    // Extract the path after /api (if it exists)
+    let path = url;
+    if (url.startsWith('/api')) {
+      path = url.replace('/api', '');
+    }
     
     // Handle dashboard route
     if (path.startsWith('/dashboard/')) {
@@ -14,11 +17,15 @@ export default async function handler(req: any, res: any) {
         const householdId = path.split('/dashboard/')[1];
         console.log('Dashboard request for household:', householdId);
         
-        // Return mock data for now
+        // Return comprehensive mock data
         const mockData = {
           expenses: [
             { id: "exp1", description: "Grocery shopping", amount: "85.50", categoryId: "cat1", householdId, date: "2024-01-15" },
-            { id: "exp2", description: "Gas station", amount: "45.00", categoryId: "cat2", householdId, date: "2024-01-14" }
+            { id: "exp2", description: "Gas station", amount: "45.00", categoryId: "cat2", householdId, date: "2024-01-14" },
+            { id: "exp3", description: "Movie tickets", amount: "32.00", categoryId: "cat4", householdId, date: "2024-01-13" },
+            { id: "exp4", description: "Gym membership", amount: "50.00", categoryId: "cat5", householdId, date: "2024-01-12" },
+            { id: "exp5", description: "Restaurant dinner", amount: "65.00", categoryId: "cat1", householdId, date: "2024-01-11" },
+            { id: "exp6", description: "Uber ride", amount: "25.00", categoryId: "cat2", householdId, date: "2024-01-10" }
           ],
           categories: [
             { id: "cat1", name: "Food & Dining", color: "#FF6B6B", householdId },
@@ -50,10 +57,13 @@ export default async function handler(req: any, res: any) {
       }
     }
     
-    // Handle categories route
-    if (path.startsWith('/categories/')) {
+    // Handle categories route (with and without /api)
+    if (path.startsWith('/categories/') || path.startsWith('/categories')) {
       if (method === 'GET') {
-        const householdId = path.split('/categories/')[1];
+        let householdId = 'default-household';
+        if (path.includes('/')) {
+          householdId = path.split('/categories/')[1] || 'default-household';
+        }
         console.log('Categories request for household:', householdId);
         
         const categories = [
@@ -73,15 +83,18 @@ export default async function handler(req: any, res: any) {
         
         return res.status(200).json(categories);
       } else if (method === 'POST') {
-        // Handle creating new categories
+        console.log('Creating new category:', req.body);
         return res.status(201).json({ message: "Category created successfully" });
       }
     }
     
-    // Handle budgets route
-    if (path.startsWith('/budgets/')) {
+    // Handle budgets route (with and without /api)
+    if (path.startsWith('/budgets/') || path.startsWith('/budgets')) {
       if (method === 'GET') {
-        const householdId = path.split('/budgets/')[1];
+        let householdId = 'default-household';
+        if (path.includes('/')) {
+          householdId = path.split('/budgets/')[1] || 'default-household';
+        }
         console.log('Budgets request for household:', householdId);
         
         const budgets = [
@@ -97,24 +110,8 @@ export default async function handler(req: any, res: any) {
         
         return res.status(200).json(budgets);
       } else if (method === 'POST') {
-        // Handle creating new budgets
-        return res.status(201).json({ message: "Budget created successfully" });
-      }
-    }
-    
-    // Handle budgets route without householdId (for POST requests)
-    if (path === '/budgets') {
-      if (method === 'POST') {
         console.log('Creating new budget:', req.body);
         return res.status(201).json({ message: "Budget created successfully" });
-      }
-    }
-    
-    // Handle categories route without householdId (for POST requests)
-    if (path === '/categories') {
-      if (method === 'POST') {
-        console.log('Creating new category:', req.body);
-        return res.status(201).json({ message: "Category created successfully" });
       }
     }
     
@@ -158,7 +155,7 @@ export default async function handler(req: any, res: any) {
       }
     }
     
-    // Handle expenses route
+    // Handle expenses route (with and without /api)
     if (path.startsWith('/expenses')) {
       if (method === 'GET') {
         const householdId = req.query.householdId || 'default-household';
@@ -166,12 +163,23 @@ export default async function handler(req: any, res: any) {
           { id: "exp1", description: "Grocery shopping", amount: "85.50", categoryId: "cat1", householdId, date: "2024-01-15" },
           { id: "exp2", description: "Gas station", amount: "45.00", categoryId: "cat2", householdId, date: "2024-01-14" },
           { id: "exp3", description: "Movie tickets", amount: "32.00", categoryId: "cat4", householdId, date: "2024-01-13" },
-          { id: "exp4", description: "Gym membership", amount: "50.00", categoryId: "cat5", householdId, date: "2024-01-12" }
+          { id: "exp4", description: "Gym membership", amount: "50.00", categoryId: "cat5", householdId, date: "2024-01-12" },
+          { id: "exp5", description: "Restaurant dinner", amount: "65.00", categoryId: "cat1", householdId, date: "2024-01-11" },
+          { id: "exp6", description: "Uber ride", amount: "25.00", categoryId: "cat2", householdId, date: "2024-01-10" }
         ];
         return res.status(200).json(expenses);
       } else if (method === 'POST') {
-        // For now, just return success
-        return res.status(201).json({ message: "Expense created successfully" });
+        console.log('Creating new expense:', req.body);
+        // Generate a new ID for the expense
+        const newExpense = {
+          id: `exp${Date.now()}`,
+          ...req.body,
+          date: req.body.date || new Date().toISOString().split('T')[0]
+        };
+        return res.status(201).json(newExpense);
+      } else if (method === 'DELETE') {
+        console.log('Deleting expense:', req.body);
+        return res.status(200).json({ message: "Expense deleted successfully" });
       }
     }
     
