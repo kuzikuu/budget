@@ -11,5 +11,11 @@
       "source": "/api/(.*)",
       "destination": "/api/index.ts"
     }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.ts"
+    }
   ]
 }
