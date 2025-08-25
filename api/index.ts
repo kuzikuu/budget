@@ -2,7 +2,12 @@
 export default async function handler(req: any, res: any) {
   try {
     const { method, url } = req;
-    console.log(`${method} ${url}`);
+    
+    console.log('=== API CALL ===');
+    console.log('Method:', method);
+    console.log('URL:', url);
+    console.log('Headers:', req.headers);
+    console.log('================');
     
     // Simple data - no complex imports, no breaking logic
     const categories = [
@@ -35,6 +40,7 @@ export default async function handler(req: any, res: any) {
     
     // Handle all routes simply
     if (url.includes('/categories') || url.includes('/categories/')) {
+      console.log('Handling categories request');
       if (method === 'GET') {
         return res.status(200).json(categories);
       }
@@ -44,6 +50,7 @@ export default async function handler(req: any, res: any) {
     }
     
     if (url.includes('/budgets') || url.includes('/budgets/')) {
+      console.log('Handling budgets request');
       if (method === 'GET') {
         return res.status(200).json(budgets);
       }
@@ -53,26 +60,33 @@ export default async function handler(req: any, res: any) {
     }
     
     if (url.includes('/expenses') || url.includes('/expenses/')) {
+      console.log('Handling expenses request');
       if (method === 'GET') {
         return res.status(200).json(expenses);
       }
       if (method === 'POST') {
+        console.log('Creating new expense:', req.body);
         return res.status(201).json({ message: "Expense created" });
       }
       if (method === 'DELETE') {
+        console.log('Deleting expense:', req.body);
         return res.status(200).json({ message: "Expense deleted" });
       }
     }
     
     if (url.includes('/dashboard') || url.includes('/dashboard/')) {
-      return res.status(200).json({
+      console.log('Handling dashboard request');
+      const dashboardData = {
         categories,
         budgets,
         expenses
-      });
+      };
+      console.log('Returning dashboard data:', dashboardData);
+      return res.status(200).json(dashboardData);
     }
     
     if (url.includes('/crypto') || url.includes('/crypto/')) {
+      console.log('Handling crypto request');
       return res.status(200).json({
         holdings: [
           { symbol: "XRP", amount: "22000", platform: "Coinbase" },
@@ -82,10 +96,25 @@ export default async function handler(req: any, res: any) {
     }
     
     // Default response
-    return res.status(200).json({ message: "API working", categories, budgets, expenses });
+    console.log('No specific route matched, returning default data');
+    return res.status(200).json({ 
+      message: "API working", 
+      categories, 
+      budgets, 
+      expenses,
+      debug: {
+        method,
+        url,
+        timestamp: new Date().toISOString()
+      }
+    });
     
   } catch (error) {
     console.error('API Error:', error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message,
+      stack: error.stack
+    });
   }
 }

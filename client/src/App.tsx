@@ -26,6 +26,8 @@ function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUsingFallback, setIsUsingFallback] = useState(false);
   const [newExpense, setNewExpense] = useState({
     description: '',
     amount: '',
@@ -39,14 +41,28 @@ function App() {
   }, []);
 
   const loadDashboardData = async () => {
+    setIsLoading(true);
     try {
+      console.log('Fetching data from API...');
       const response = await fetch('/api/dashboard');
+      console.log('API Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('API Data received:', data);
+      
       setCategories(data.categories || []);
       setBudgets(data.budgets || []);
       setExpenses(data.expenses || []);
+      setIsUsingFallback(false);
+      
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('Failed to load data from API:', error);
+      console.log('Using fallback data...');
+      
       // Fallback data if API fails
       setCategories([
         { id: "cat1", name: "Groceries", color: "#2563EB" },
@@ -73,6 +89,9 @@ function App() {
         { id: "exp2", description: "Gas station", amount: 45.00, categoryId: "cat2", date: "2024-01-14" },
         { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
       ]);
+      setIsUsingFallback(true);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -92,13 +111,20 @@ function App() {
     };
 
     try {
-      await fetch('/api/expenses', {
+      const response = await fetch('/api/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(expense)
       });
       
-      setExpenses([...expenses, expense]);
+      if (response.ok) {
+        console.log('Expense added via API');
+        setExpenses([...expenses, expense]);
+      } else {
+        console.log('API failed, adding locally');
+        setExpenses([...expenses, expense]);
+      }
+      
       setNewExpense({
         description: '',
         amount: '',
@@ -120,11 +146,17 @@ function App() {
 
   const deleteExpense = async (id: string) => {
     try {
-      await fetch('/api/expenses', {
+      const response = await fetch('/api/expenses', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       });
+      
+      if (response.ok) {
+        console.log('Expense deleted via API');
+      } else {
+        console.log('API failed, deleting locally');
+      }
     } catch (error) {
       console.error('Failed to delete expense:', error);
     }
@@ -160,11 +192,27 @@ function App() {
   const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const totalRemaining = totalBudget - totalSpent;
 
+  if (isLoading) {
+    return (
+      <div className="App">
+        <div className="loading">
+          <h2>Loading Budget Tracker...</h2>
+          <p>Please wait while we connect to the server...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <header className="header">
         <h1>💰 Budget Tracker</h1>
         <p>Track your monthly expenses against your budget</p>
+        {isUsingFallback && (
+          <div className="fallback-warning">
+            ⚠️ Using offline data - API connection failed
+          </div>
+        )}
       </header>
 
       <div className="summary-cards">
