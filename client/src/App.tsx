@@ -63,7 +63,7 @@ function App() {
       console.error('❌ Failed to load data from API:', error);
       console.log('⚠️ Using fallback data...');
 
-      // Fallback data if API fails
+      // Fallback data if API fails - categories and budgets, but no expenses
       setCategories([
         { id: "cat1", name: "Groceries", color: "#2563EB" },
         { id: "cat2", name: "Transportation", color: "#059669" },
@@ -84,11 +84,7 @@ function App() {
         { id: "budget7", categoryId: "cat7", amount: 1000, period: "monthly" },
         { id: "budget8", categoryId: "cat8", amount: 1000, period: "monthly" }
       ]);
-      setExpenses([
-        { id: "exp1", description: "Grocery shopping", amount: 85.50, categoryId: "cat1", date: "2024-01-15" },
-        { id: "exp2", description: "Gas station", amount: 45.00, categoryId: "cat2", date: "2024-01-14" },
-        { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
-      ]);
+      setExpenses([]); // No default expenses
       setIsUsingFallback(true);
     } finally {
       setIsLoading(false);
@@ -325,28 +321,34 @@ function App() {
           </form>
 
           <h2>Recent Expenses</h2>
-          <div className="expenses-list">
-            {expenses.map(expense => (
-              <div key={expense.id} className="expense-item">
-                <div className="expense-info">
-                  <h4>{expense.description}</h4>
-                  <span className="expense-category" style={{ color: getCategoryColor(expense.categoryId) }}>
-                    {getCategoryName(expense.categoryId)}
-                  </span>
-                  <span className="expense-date">{expense.date}</span>
+          {expenses.length === 0 ? (
+            <div className="empty-state">
+              <p>No expenses yet. Add your first expense above!</p>
+            </div>
+          ) : (
+            <div className="expenses-list">
+              {expenses.map(expense => (
+                <div key={expense.id} className="expense-item">
+                  <div className="expense-info">
+                    <h4>{expense.description}</h4>
+                    <span className="expense-category" style={{ color: getCategoryColor(expense.categoryId) }}>
+                      {getCategoryName(expense.categoryId)}
+                    </span>
+                    <span className="expense-date">{expense.date}</span>
+                  </div>
+                  <div className="expense-amount">
+                    <span>${expense.amount.toLocaleString()}</span>
+                    <button 
+                      onClick={() => deleteExpense(expense.id)}
+                      className="delete-btn"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
-                <div className="expense-amount">
-                  <span>${expense.amount.toLocaleString()}</span>
-                  <button 
-                    onClick={() => deleteExpense(expense.id)}
-                    className="delete-btn"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
