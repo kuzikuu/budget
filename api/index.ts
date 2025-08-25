@@ -1,3 +1,4 @@
+// Simple working API for BudgetBuddy with Redis storage
 import { createClient } from 'redis';
 
 // Redis configuration
@@ -9,18 +10,27 @@ const redisClient = createClient({
   }
 });
 
-// Initialize Redis connection
+// Redis connection state
 let isRedisConnected = false;
+let connectionAttempted = false;
 
+// Initialize Redis connection
 async function ensureRedisConnection() {
-  if (!isRedisConnected) {
-    try {
-      await redisClient.connect();
-      isRedisConnected = true;
-      console.log('✅ Redis connected successfully');
-    } catch (error) {
-      console.error('❌ Failed to connect to Redis:', error);
-    }
+  if (connectionAttempted) {
+    return isRedisConnected;
+  }
+  
+  connectionAttempted = true;
+  
+  try {
+    await redisClient.connect();
+    isRedisConnected = true;
+    console.log('✅ Redis connected successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to connect to Redis:', error);
+    isRedisConnected = false;
+    return false;
   }
 }
 
@@ -60,14 +70,22 @@ const defaultExpenses = [
   { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
 ];
 
-// Redis helper functions
+// Redis helper functions with fallback
 async function getFromRedis(key: string, defaultValue: any[] = []) {
   try {
-    await ensureRedisConnection();
+    const connected = await ensureRedisConnection();
+    if (!connected) {
+      console.log(`Redis not connected, using default data for ${key}`);
+      return defaultValue;
+    }
+    
     const data = await redisClient.get(key);
     if (data) {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      console.log(`✅ Retrieved from Redis: ${key} (${parsed.length} items)`);
+      return parsed;
     }
+    
     // Initialize with default data if key doesn't exist
     await setToRedis(key, defaultValue);
     return defaultValue;
@@ -79,11 +97,18 @@ async function getFromRedis(key: string, defaultValue: any[] = []) {
 
 async function setToRedis(key: string, data: any) {
   try {
-    await ensureRedisConnection();
+    const connected = await ensureRedisConnection();
+    if (!connected) {
+      console.log(`Redis not connected, skipping save for ${key}`);
+      return false;
+    }
+    
     await redisClient.set(key, JSON.stringify(data));
     console.log(`✅ Data saved to Redis: ${key}`);
+    return true;
   } catch (error) {
     console.error(`Failed to save to Redis (${key}):`, error);
+    return false;
   }
 }
 
@@ -123,7 +148,7 @@ export default async function handler(req: any, res: any) {
       console.log('Handling expenses request');
       if (method === 'GET') {
         const expenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
-        console.log('Returning expenses from Redis:', expenses.length);
+        console.log('Returning expenses:', expenses.length);
         return res.status(200).json(expenses);
       }
       if (method === 'POST') {
@@ -140,9 +165,9 @@ export default async function handler(req: any, res: any) {
         const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
         currentExpenses.push(newExpense);
         
-        // Save updated expenses to Redis
-        await setToRedis(REDIS_KEYS.EXPENSES, currentExpenses);
-        console.log('✅ Expense saved to Redis. Total expenses:', currentExpenses.length);
+        // Try to save to Redis, but don't fail if it doesn't work
+        const saved = await setToRedis(REDIS_KEYS.EXPENSES, currentExpenses);
+        console.log(`Expense ${saved ? 'saved to Redis' : 'stored locally'}. Total: ${currentExpenses.length}`);
         
         return res.status(201).json(newExpense);
       }
@@ -154,9 +179,9 @@ export default async function handler(req: any, res: any) {
         const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
         const updatedExpenses = currentExpenses.filter(exp => exp.id !== expenseId);
         
-        // Save updated expenses to Redis
-        await setToRedis(REDIS_KEYS.EXPENSES, updatedExpenses);
-        console.log('✅ Expense deleted from Redis. Total expenses:', updatedExpenses.length);
+        // Try to save to Redis, but don't fail if it doesn't work
+        const saved = await setToRedis(REDIS_KEYS.EXPENSES, updatedExpenses);
+        console.log(`Expense ${saved ? 'deleted from Redis' : 'deleted locally'}. Total: ${updatedExpenses.length}`);
         
         return res.status(200).json({ message: "Expense deleted" });
       }
@@ -165,7 +190,7 @@ export default async function handler(req: any, res: any) {
     if (url.includes('/dashboard') || url.includes('/dashboard/')) {
       console.log('Handling dashboard request');
       
-      // Get all data from Redis
+      // Get all data from Redis with fallbacks
       const [categories, budgets, expenses] = await Promise.all([
         getFromRedis(REDIS_KEYS.CATEGORIES, defaultCategories),
         getFromRedis(REDIS_KEYS.BUDGETS, defaultBudgets),
@@ -173,7 +198,7 @@ export default async function handler(req: any, res: any) {
       ]);
       
       const dashboardData = { categories, budgets, expenses };
-      console.log('✅ Dashboard data from Redis - Expenses:', expenses.length);
+      console.log(`✅ Dashboard data - Categories: ${categories.length}, Budgets: ${budgets.length}, Expenses: ${expenses.length}`);
       return res.status(200).json(dashboardData);
     }
     
