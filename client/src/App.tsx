@@ -156,9 +156,18 @@ function App() {
       });
 
       if (response.ok) {
+        const result = await response.json();
         console.log('✅ Expense deleted from Redis successfully');
-        // Reload data to get the latest from Redis
-        await loadDashboardData();
+        
+        // Update the expenses state immediately with the returned data
+        if (result.expenses) {
+          setExpenses(result.expenses);
+          console.log(`📊 UI updated with ${result.expenses.length} expenses`);
+        } else {
+          // Fallback: remove from local state
+          setExpenses(expenses.filter(exp => exp.id !== id));
+          console.log('⚠️ No expenses returned, updated local state');
+        }
       } else {
         console.log('❌ API failed, deleting locally');
         setExpenses(expenses.filter(exp => exp.id !== id));

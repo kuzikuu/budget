@@ -16,20 +16,7 @@ function createRedisClient() {
     socket: {
       tls: true,
       rejectUnauthorized: false,
-      connectTimeout: 10000,
-      commandTimeout: 5000
-    },
-    retry_strategy: (options: any) => {
-      if (options.total_retry_time > 1000 * 60 * 60) {
-        // End reconnecting after a specific timeout and flush all commands with an error
-        return new Error('Retry time exhausted');
-      }
-      if (options.attempt > 10) {
-        // End reconnecting with built in error
-        return undefined;
-      }
-      // Reconnect after
-      return Math.min(options.attempt * 100, 3000);
+      connectTimeout: 10000
     }
   });
 
@@ -147,9 +134,14 @@ async function getFromRedis(key: string, defaultValue: any[] = []) {
       return parsed;
     }
 
-    // Initialize with default data if key doesn't exist
-    console.log(`📝 Initializing Redis key ${key} with default data`);
-    await setToRedis(key, defaultValue);
+    // Only initialize with default data if this is the first time
+    console.log(`📝 Key ${key} not found in Redis, initializing with default data`);
+    const saved = await setToRedis(key, defaultValue);
+    if (saved) {
+      console.log(`✅ Default data initialized in Redis for ${key}`);
+    } else {
+      console.log(`⚠️ Failed to initialize default data in Redis for ${key}`);
+    }
     return defaultValue;
   } catch (error) {
     console.error(`❌ Failed to get from Redis (${key}):`, error);
@@ -170,6 +162,23 @@ async function setToRedis(key: string, data: any) {
     return true;
   } catch (error) {
     console.error(`❌ Failed to save to Redis (${key}):`, error);
+    return false;
+  }
+}
+
+async function deleteFromRedis(key: string) {
+  try {
+    const connected = await ensureRedisConnection();
+    if (!connected) {
+      console.log(`⚠️ Redis not connected, cannot delete ${key}`);
+      return false;
+    }
+
+    await redisClient.del(key);
+    console.log(`🗑️ Key deleted from Redis: ${key}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to delete from Redis (${key}):`, error);
     return false;
   }
 }
@@ -240,13 +249,22 @@ export default async function handler(req: any, res: any) {
 
         // Get current expenses from Redis
         const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
+        console.log(`📊 Current expenses before delete: ${currentExpenses.length}`);
+        
+        // Filter out the expense to delete
         const updatedExpenses = currentExpenses.filter(exp => exp.id !== expenseId);
+        console.log(`📊 Expenses after delete: ${updatedExpenses.length}`);
 
-        // Try to save to Redis
+        // Save updated expenses to Redis
         const saved = await setToRedis(REDIS_KEYS.EXPENSES, updatedExpenses);
         console.log(`💾 Expense ${saved ? 'deleted from Redis' : 'deleted locally'}. Total: ${updatedExpenses.length}`);
 
-        return res.status(200).json({ message: "Expense deleted" });
+        // Return the updated expense list so frontend can update immediately
+        return res.status(200).json({ 
+          message: "Expense deleted",
+          expenses: updatedExpenses,
+          deletedId: expenseId
+        });
       }
     }
 
