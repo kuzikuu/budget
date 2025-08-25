@@ -22,76 +22,12 @@ interface Expense {
   date: string;
 }
 
-// Local storage keys
-const STORAGE_KEYS = {
-  EXPENSES: 'budgetbuddy_expenses',
-  CATEGORIES: 'budgetbuddy_categories',
-  BUDGETS: 'budgetbuddy_budgets'
-};
-
-// Default data
-const defaultCategories = [
-  { id: "cat1", name: "Groceries", color: "#2563EB" },
-  { id: "cat2", name: "Transportation", color: "#059669" },
-  { id: "cat3", name: "Utilities", color: "#DC2626" },
-  { id: "cat4", name: "Healthcare", color: "#DB2777" },
-  { id: "cat5", name: "Personal", color: "#7C3AED" },
-  { id: "cat6", name: "Student Loan", color: "#F59E0B" },
-  { id: "cat7", name: "Credit Cards", color: "#EF4444" },
-  { id: "cat8", name: "Savings", color: "#10B981" }
-];
-
-const defaultBudgets = [
-  { id: "budget1", categoryId: "cat1", amount: 800, period: "monthly" },
-  { id: "budget2", categoryId: "cat2", amount: 200, period: "monthly" },
-  { id: "budget3", categoryId: "cat3", amount: 400, period: "monthly" },
-  { id: "budget4", categoryId: "cat4", amount: 300, period: "monthly" },
-  { id: "budget5", categoryId: "cat5", amount: 400, period: "monthly" },
-  { id: "budget6", categoryId: "cat6", amount: 1100, period: "monthly" },
-  { id: "budget7", categoryId: "cat7", amount: 1000, period: "monthly" },
-  { id: "budget8", categoryId: "cat8", amount: 1000, period: "monthly" }
-];
-
-const defaultExpenses = [
-  { id: "exp1", description: "Grocery shopping", amount: 85.50, categoryId: "cat1", date: "2024-01-15" },
-  { id: "exp2", description: "Gas station", amount: 45.00, categoryId: "cat2", date: "2024-01-14" },
-  { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
-];
-
-// Local storage helper functions
-function getFromStorage(key: string, defaultValue: any[] = []) {
-  try {
-    const stored = localStorage.getItem(key);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      console.log(`✅ Retrieved from localStorage: ${key} (${parsed.length} items)`);
-      return parsed;
-    }
-    // Initialize with default data if key doesn't exist
-    localStorage.setItem(key, JSON.stringify(defaultValue));
-    return defaultValue;
-  } catch (error) {
-    console.error(`Failed to get from localStorage (${key}):`, error);
-    return defaultValue;
-  }
-}
-
-function setToStorage(key: string, data: any) {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-    console.log(`✅ Data saved to localStorage: ${key}`);
-    return true;
-  } catch (error) {
-    console.error(`Failed to save to localStorage (${key}):`, error);
-    return false;
-  }
-}
-
 function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUsingFallback, setIsUsingFallback] = useState(false);
   const [newExpense, setNewExpense] = useState({
     description: '',
     amount: '',
@@ -101,37 +37,65 @@ function App() {
 
   // Load data on component mount
   useEffect(() => {
-    loadData();
+    loadDashboardData();
   }, []);
 
-  const loadData = () => {
+  const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      console.log('Loading data from localStorage...');
-      
-      // Load all data from localStorage
-      const storedCategories = getFromStorage(STORAGE_KEYS.CATEGORIES, defaultCategories);
-      const storedBudgets = getFromStorage(STORAGE_KEYS.BUDGETS, defaultBudgets);
-      const storedExpenses = getFromStorage(STORAGE_KEYS.EXPENSES, defaultExpenses);
-      
-      setCategories(storedCategories);
-      setBudgets(storedBudgets);
-      setExpenses(storedExpenses);
-      
-      console.log('Data loaded successfully from localStorage');
-      
+      console.log('🔌 Fetching data from Redis API...');
+      const response = await fetch('/api/dashboard');
+      console.log('📡 API Response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ API Data received:', data);
+
+      setCategories(data.categories || []);
+      setBudgets(data.budgets || []);
+      setExpenses(data.expenses || []);
+      setIsUsingFallback(false);
+
     } catch (error) {
-      console.error('Failed to load data:', error);
-      // Use default data if localStorage fails
-      setCategories(defaultCategories);
-      setBudgets(defaultBudgets);
-      setExpenses(defaultExpenses);
+      console.error('❌ Failed to load data from API:', error);
+      console.log('⚠️ Using fallback data...');
+
+      // Fallback data if API fails
+      setCategories([
+        { id: "cat1", name: "Groceries", color: "#2563EB" },
+        { id: "cat2", name: "Transportation", color: "#059669" },
+        { id: "cat3", name: "Utilities", color: "#DC2626" },
+        { id: "cat4", name: "Healthcare", color: "#DB2777" },
+        { id: "cat5", name: "Personal", color: "#7C3AED" },
+        { id: "cat6", name: "Student Loan", color: "#F59E0B" },
+        { id: "cat7", name: "Credit Cards", color: "#EF4444" },
+        { id: "cat8", name: "Savings", color: "#10B981" }
+      ]);
+      setBudgets([
+        { id: "budget1", categoryId: "cat1", amount: 800, period: "monthly" },
+        { id: "budget2", categoryId: "cat2", amount: 200, period: "monthly" },
+        { id: "budget3", categoryId: "cat3", amount: 400, period: "monthly" },
+        { id: "budget4", categoryId: "cat4", amount: 300, period: "monthly" },
+        { id: "budget5", categoryId: "cat5", amount: 400, period: "monthly" },
+        { id: "budget6", categoryId: "cat6", amount: 1100, period: "monthly" },
+        { id: "budget7", categoryId: "cat7", amount: 1000, period: "monthly" },
+        { id: "budget8", categoryId: "cat8", amount: 1000, period: "monthly" }
+      ]);
+      setExpenses([
+        { id: "exp1", description: "Grocery shopping", amount: 85.50, categoryId: "cat1", date: "2024-01-15" },
+        { id: "exp2", description: "Gas station", amount: 45.00, categoryId: "cat2", date: "2024-01-14" },
+        { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
+      ]);
+      setIsUsingFallback(true);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const addExpense = (e: React.FormEvent) => {
+  const addExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExpense.description || !newExpense.amount || !newExpense.categoryId) {
       alert('Please fill in all fields');
@@ -146,33 +110,63 @@ function App() {
       date: newExpense.date
     };
 
-    // Add to state
-    const updatedExpenses = [...expenses, expense];
-    setExpenses(updatedExpenses);
-    
-    // Save to localStorage
-    setToStorage(STORAGE_KEYS.EXPENSES, updatedExpenses);
-    
-    // Reset form
-    setNewExpense({
-      description: '',
-      amount: '',
-      categoryId: '',
-      date: new Date().toISOString().split('T')[0]
-    });
-    
-    console.log('✅ Expense added and saved to localStorage');
+    try {
+      console.log('💾 Saving expense to Redis...');
+      const response = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(expense)
+      });
+
+      if (response.ok) {
+        console.log('✅ Expense saved to Redis successfully');
+        // Reload data to get the latest from Redis
+        await loadDashboardData();
+      } else {
+        console.log('❌ API failed, adding locally');
+        setExpenses([...expenses, expense]);
+      }
+
+      setNewExpense({
+        description: '',
+        amount: '',
+        categoryId: '',
+        date: new Date().toISOString().split('T')[0]
+      });
+    } catch (error) {
+      console.error('❌ Failed to add expense:', error);
+      // Add locally if API fails
+      setExpenses([...expenses, expense]);
+      setNewExpense({
+        description: '',
+        amount: '',
+        categoryId: '',
+        date: new Date().toISOString().split('T')[0]
+      });
+    }
   };
 
-  const deleteExpense = (id: string) => {
-    // Remove from state
-    const updatedExpenses = expenses.filter(exp => exp.id !== id);
-    setExpenses(updatedExpenses);
-    
-    // Save to localStorage
-    setToStorage(STORAGE_KEYS.EXPENSES, updatedExpenses);
-    
-    console.log('✅ Expense deleted and saved to localStorage');
+  const deleteExpense = async (id: string) => {
+    try {
+      console.log('🗑️ Deleting expense from Redis...');
+      const response = await fetch('/api/expenses', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+
+      if (response.ok) {
+        console.log('✅ Expense deleted from Redis successfully');
+        // Reload data to get the latest from Redis
+        await loadDashboardData();
+      } else {
+        console.log('❌ API failed, deleting locally');
+        setExpenses(expenses.filter(exp => exp.id !== id));
+      }
+    } catch (error) {
+      console.error('❌ Failed to delete expense:', error);
+      setExpenses(expenses.filter(exp => exp.id !== id));
+    }
   };
 
   const getCategoryName = (categoryId: string) => {
@@ -207,8 +201,8 @@ function App() {
     return (
       <div className="App">
         <div className="loading">
-          <h2>Loading Budget Tracker...</h2>
-          <p>Please wait while we load your data...</p>
+          <h2>🔄 Loading Budget Tracker...</h2>
+          <p>Connecting to Redis database...</p>
         </div>
       </div>
     );
@@ -219,9 +213,15 @@ function App() {
       <header className="header">
         <h1>💰 Budget Tracker</h1>
         <p>Track your monthly expenses against your budget</p>
-        <div className="storage-info">
-          💾 Data stored locally in your browser
-        </div>
+        {isUsingFallback ? (
+          <div className="fallback-warning">
+            ⚠️ Using offline data - Redis connection failed
+          </div>
+        ) : (
+          <div className="storage-info">
+            💾 Data synced across all your devices via Redis
+          </div>
+        )}
       </header>
 
       <div className="summary-cards">

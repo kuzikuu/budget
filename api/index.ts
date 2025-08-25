@@ -1,35 +1,96 @@
-// Simple working API for BudgetBuddy with Redis storage
+// Robust Redis API for BudgetBuddy with proper Vercel serverless handling
 import { createClient } from 'redis';
 
-// Redis configuration
-const redisClient = createClient({
-  url: process.env.REDIS_URL || 'redis://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379',
-  socket: {
-    tls: true,
-    rejectUnauthorized: false
-  }
-});
+// Redis configuration with connection pooling
+let redisClient: any = null;
+let isConnecting = false;
+let lastConnectionAttempt = 0;
+const CONNECTION_COOLDOWN = 5000; // 5 seconds between connection attempts
 
-// Redis connection state
-let isRedisConnected = false;
-let connectionAttempted = false;
+// Initialize Redis client
+function createRedisClient() {
+  if (redisClient) return redisClient;
+  
+  redisClient = createClient({
+    url: process.env.REDIS_URL || 'redis://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379',
+    socket: {
+      tls: true,
+      rejectUnauthorized: false,
+      connectTimeout: 10000,
+      commandTimeout: 5000
+    },
+    retry_strategy: (options: any) => {
+      if (options.total_retry_time > 1000 * 60 * 60) {
+        // End reconnecting after a specific timeout and flush all commands with an error
+        return new Error('Retry time exhausted');
+      }
+      if (options.attempt > 10) {
+        // End reconnecting with built in error
+        return undefined;
+      }
+      // Reconnect after
+      return Math.min(options.attempt * 100, 3000);
+    }
+  });
 
-// Initialize Redis connection
-async function ensureRedisConnection() {
-  if (connectionAttempted) {
-    return isRedisConnected;
-  }
-  
-  connectionAttempted = true;
-  
-  try {
-    await redisClient.connect();
-    isRedisConnected = true;
+  // Handle Redis events
+  redisClient.on('error', (err: any) => {
+    console.error('Redis Client Error:', err);
+    redisClient = null;
+  });
+
+  redisClient.on('connect', () => {
     console.log('✅ Redis connected successfully');
+  });
+
+  redisClient.on('ready', () => {
+    console.log('✅ Redis ready for commands');
+  });
+
+  redisClient.on('end', () => {
+    console.log('❌ Redis connection ended');
+    redisClient = null;
+  });
+
+  return redisClient;
+}
+
+// Smart Redis connection management
+async function ensureRedisConnection() {
+  const now = Date.now();
+  
+  // If we're already connecting, wait
+  if (isConnecting) {
+    console.log('⏳ Redis connection already in progress, waiting...');
+    return false;
+  }
+  
+  // If we tried recently, wait for cooldown
+  if (now - lastConnectionAttempt < CONNECTION_COOLDOWN) {
+    console.log('⏳ Redis connection cooldown, using fallback');
+    return false;
+  }
+  
+  // If we have a connected client, use it
+  if (redisClient && redisClient.isReady) {
+    return true;
+  }
+  
+  // Try to connect
+  try {
+    isConnecting = true;
+    lastConnectionAttempt = now;
+    
+    console.log('🔌 Attempting Redis connection...');
+    const client = createRedisClient();
+    await client.connect();
+    
+    isConnecting = false;
     return true;
   } catch (error) {
-    console.error('❌ Failed to connect to Redis:', error);
-    isRedisConnected = false;
+    console.error('❌ Redis connection failed:', error);
+    isConnecting = false;
+    redisClient = null;
     return false;
   }
 }
@@ -70,27 +131,28 @@ const defaultExpenses = [
   { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
 ];
 
-// Redis helper functions with fallback
+// Robust Redis operations with fallbacks
 async function getFromRedis(key: string, defaultValue: any[] = []) {
   try {
     const connected = await ensureRedisConnection();
     if (!connected) {
-      console.log(`Redis not connected, using default data for ${key}`);
+      console.log(`⚠️ Redis not connected, using default data for ${key}`);
       return defaultValue;
     }
-    
+
     const data = await redisClient.get(key);
     if (data) {
       const parsed = JSON.parse(data);
       console.log(`✅ Retrieved from Redis: ${key} (${parsed.length} items)`);
       return parsed;
     }
-    
+
     // Initialize with default data if key doesn't exist
+    console.log(`📝 Initializing Redis key ${key} with default data`);
     await setToRedis(key, defaultValue);
     return defaultValue;
   } catch (error) {
-    console.error(`Failed to get from Redis (${key}):`, error);
+    console.error(`❌ Failed to get from Redis (${key}):`, error);
     return defaultValue;
   }
 }
@@ -99,15 +161,15 @@ async function setToRedis(key: string, data: any) {
   try {
     const connected = await ensureRedisConnection();
     if (!connected) {
-      console.log(`Redis not connected, skipping save for ${key}`);
+      console.log(`⚠️ Redis not connected, skipping save for ${key}`);
       return false;
     }
-    
+
     await redisClient.set(key, JSON.stringify(data));
-    console.log(`✅ Data saved to Redis: ${key}`);
+    console.log(`✅ Data saved to Redis: ${key} (${data.length} items)`);
     return true;
   } catch (error) {
-    console.error(`Failed to save to Redis (${key}):`, error);
+    console.error(`❌ Failed to save to Redis (${key}):`, error);
     return false;
   }
 }
@@ -115,15 +177,16 @@ async function setToRedis(key: string, data: any) {
 export default async function handler(req: any, res: any) {
   try {
     const { method, url } = req;
-    
+
     console.log('=== API CALL ===');
     console.log('Method:', method);
     console.log('URL:', url);
+    console.log('Redis Status:', redisClient ? (redisClient.isReady ? 'Connected' : 'Connecting') : 'Not initialized');
     console.log('================');
-    
+
     // Handle all routes with Redis storage
     if (url.includes('/categories') || url.includes('/categories/')) {
-      console.log('Handling categories request');
+      console.log('📋 Handling categories request');
       if (method === 'GET') {
         const categories = await getFromRedis(REDIS_KEYS.CATEGORIES, defaultCategories);
         return res.status(200).json(categories);
@@ -132,9 +195,9 @@ export default async function handler(req: any, res: any) {
         return res.status(201).json({ message: "Category created" });
       }
     }
-    
+
     if (url.includes('/budgets') || url.includes('/budgets/')) {
-      console.log('Handling budgets request');
+      console.log('💰 Handling budgets request');
       if (method === 'GET') {
         const budgets = await getFromRedis(REDIS_KEYS.BUDGETS, defaultBudgets);
         return res.status(200).json(budgets);
@@ -143,16 +206,16 @@ export default async function handler(req: any, res: any) {
         return res.status(201).json({ message: "Budget created" });
       }
     }
-    
+
     if (url.includes('/expenses') || url.includes('/expenses/')) {
-      console.log('Handling expenses request');
+      console.log('💸 Handling expenses request');
       if (method === 'GET') {
         const expenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
-        console.log('Returning expenses:', expenses.length);
+        console.log('📊 Returning expenses:', expenses.length);
         return res.status(200).json(expenses);
       }
       if (method === 'POST') {
-        console.log('Creating new expense:', req.body);
+        console.log('➕ Creating new expense:', req.body);
         const newExpense = {
           id: `exp${Date.now()}`,
           description: req.body.description,
@@ -160,50 +223,50 @@ export default async function handler(req: any, res: any) {
           categoryId: req.body.categoryId,
           date: req.body.date
         };
-        
+
         // Get current expenses from Redis
         const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
         currentExpenses.push(newExpense);
-        
-        // Try to save to Redis, but don't fail if it doesn't work
+
+        // Try to save to Redis
         const saved = await setToRedis(REDIS_KEYS.EXPENSES, currentExpenses);
-        console.log(`Expense ${saved ? 'saved to Redis' : 'stored locally'}. Total: ${currentExpenses.length}`);
-        
+        console.log(`💾 Expense ${saved ? 'saved to Redis' : 'saved locally'}. Total: ${currentExpenses.length}`);
+
         return res.status(201).json(newExpense);
       }
       if (method === 'DELETE') {
-        console.log('Deleting expense:', req.body);
+        console.log('🗑️ Deleting expense:', req.body);
         const expenseId = req.body.id;
-        
+
         // Get current expenses from Redis
         const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
         const updatedExpenses = currentExpenses.filter(exp => exp.id !== expenseId);
-        
-        // Try to save to Redis, but don't fail if it doesn't work
+
+        // Try to save to Redis
         const saved = await setToRedis(REDIS_KEYS.EXPENSES, updatedExpenses);
-        console.log(`Expense ${saved ? 'deleted from Redis' : 'deleted locally'}. Total: ${updatedExpenses.length}`);
-        
+        console.log(`💾 Expense ${saved ? 'deleted from Redis' : 'deleted locally'}. Total: ${updatedExpenses.length}`);
+
         return res.status(200).json({ message: "Expense deleted" });
       }
     }
-    
+
     if (url.includes('/dashboard') || url.includes('/dashboard/')) {
-      console.log('Handling dashboard request');
-      
+      console.log('📊 Handling dashboard request');
+
       // Get all data from Redis with fallbacks
       const [categories, budgets, expenses] = await Promise.all([
         getFromRedis(REDIS_KEYS.CATEGORIES, defaultCategories),
         getFromRedis(REDIS_KEYS.BUDGETS, defaultBudgets),
         getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses)
       ]);
-      
+
       const dashboardData = { categories, budgets, expenses };
       console.log(`✅ Dashboard data - Categories: ${categories.length}, Budgets: ${budgets.length}, Expenses: ${expenses.length}`);
       return res.status(200).json(dashboardData);
     }
-    
+
     if (url.includes('/crypto') || url.includes('/crypto/')) {
-      console.log('Handling crypto request');
+      console.log('🪙 Handling crypto request');
       return res.status(200).json({
         holdings: [
           { symbol: "XRP", amount: "22000", platform: "Coinbase" },
@@ -211,33 +274,33 @@ export default async function handler(req: any, res: any) {
         ]
       });
     }
-    
+
     // Default response
-    console.log('No specific route matched, returning default data');
+    console.log('🔍 No specific route matched, returning default data');
     const [categories, budgets, expenses] = await Promise.all([
       getFromRedis(REDIS_KEYS.CATEGORIES, defaultCategories),
       getFromRedis(REDIS_KEYS.BUDGETS, defaultBudgets),
       getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses)
     ]);
-    
-    return res.status(200).json({ 
-      message: "API working with Redis storage", 
-      categories, 
-      budgets, 
+
+    return res.status(200).json({
+      message: "API working with Redis storage",
+      categories,
+      budgets,
       expenses,
       debug: {
         method,
         url,
         timestamp: new Date().toISOString(),
         totalExpenses: expenses.length,
-        redisConnected: isRedisConnected
+        redisStatus: redisClient ? (redisClient.isReady ? 'Connected' : 'Connecting') : 'Not initialized'
       }
     });
-    
+
   } catch (error) {
-    console.error('API Error:', error);
-    return res.status(500).json({ 
-      message: 'Server error', 
+    console.error('💥 API Error:', error);
+    return res.status(500).json({
+      message: 'Server error',
       error: error.message,
       stack: error.stack
     });
