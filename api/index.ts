@@ -180,18 +180,19 @@ async function getFromRedis(key: string, defaultValue: any[] = []) {
         } else {
           console.log(`⚠️ Failed to initialize default data in Redis for ${key}`);
         }
+        return defaultValue; // Return default data for first-time setup
       } else {
         console.log(`📝 Redis already initialized, ${key} is empty - returning empty array`);
         hasInitializedDefaults = true;
+        return []; // Return empty array since already initialized
       }
     } else {
       console.log(`📝 Key ${key} not found in Redis, returning empty array (not reinitializing)`);
+      return []; // Return empty array since we're already initialized
     }
-    
-    return [];
   } catch (error) {
     console.error(`❌ Failed to get from Redis (${key}):`, error);
-    return [];
+    return []; // Return empty array on error, not default data
   }
 }
 
@@ -272,6 +273,34 @@ export default async function handler(req: any, res: any) {
         message: cleared ? "All data cleared" : "Failed to clear data",
         success: cleared
       });
+    }
+
+    // Handle reset initialization route
+    if (url.includes('/reset') && method === 'POST') {
+      console.log('🔄 Resetting initialization state...');
+      try {
+        const connected = await ensureRedisConnection();
+        if (connected) {
+          await redisClient.del(REDIS_KEYS.INITIALIZED);
+          hasInitializedDefaults = false;
+          console.log('✅ Initialization state reset');
+          return res.status(200).json({ 
+            message: "Initialization state reset",
+            success: true
+          });
+        } else {
+          return res.status(500).json({ 
+            message: "Redis not connected",
+            success: false
+          });
+        }
+      } catch (error) {
+        console.error('❌ Failed to reset initialization:', error);
+        return res.status(500).json({ 
+          message: "Failed to reset initialization",
+          success: false
+        });
+      }
     }
 
     // Handle all routes with Redis storage
