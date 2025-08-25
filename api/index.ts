@@ -7,6 +7,9 @@ let isConnecting = false;
 let lastConnectionAttempt = 0;
 const CONNECTION_COOLDOWN = 5000; // 5 seconds between connection attempts
 
+// Track if we've initialized default data
+let hasInitializedDefaults = false;
+
 // Initialize Redis client
 function createRedisClient() {
   if (redisClient) return redisClient;
@@ -86,7 +89,8 @@ async function ensureRedisConnection() {
 const REDIS_KEYS = {
   EXPENSES: 'budgetbuddy:expenses',
   CATEGORIES: 'budgetbuddy:categories',
-  BUDGETS: 'budgetbuddy:budgets'
+  BUDGETS: 'budgetbuddy:budgets',
+  INITIALIZED: 'budgetbuddy:initialized' // Track if we've initialized
 };
 
 // Default data
@@ -118,6 +122,35 @@ const defaultExpenses = [
   { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
 ];
 
+// Check if we've already initialized default data
+async function checkIfInitialized() {
+  try {
+    const connected = await ensureRedisConnection();
+    if (!connected) return false;
+    
+    const initialized = await redisClient.get(REDIS_KEYS.INITIALIZED);
+    return initialized === 'true';
+  } catch (error) {
+    console.error('❌ Failed to check initialization status:', error);
+    return false;
+  }
+}
+
+// Mark that we've initialized default data
+async function markAsInitialized() {
+  try {
+    const connected = await ensureRedisConnection();
+    if (!connected) return false;
+    
+    await redisClient.set(REDIS_KEYS.INITIALIZED, 'true');
+    console.log('✅ Marked as initialized in Redis');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to mark as initialized:', error);
+    return false;
+  }
+}
+
 // Robust Redis operations with fallbacks
 async function getFromRedis(key: string, defaultValue: any[] = []) {
   try {
@@ -134,18 +167,31 @@ async function getFromRedis(key: string, defaultValue: any[] = []) {
       return parsed;
     }
 
-    // Only initialize with default data if this is the first time
-    console.log(`📝 Key ${key} not found in Redis, initializing with default data`);
-    const saved = await setToRedis(key, defaultValue);
-    if (saved) {
-      console.log(`✅ Default data initialized in Redis for ${key}`);
+    // Only initialize with default data if this is the first time EVER
+    if (!hasInitializedDefaults) {
+      const alreadyInitialized = await checkIfInitialized();
+      if (!alreadyInitialized) {
+        console.log(`📝 First time setup - initializing ${key} with default data`);
+        const saved = await setToRedis(key, defaultValue);
+        if (saved) {
+          console.log(`✅ Default data initialized in Redis for ${key}`);
+          await markAsInitialized();
+          hasInitializedDefaults = true;
+        } else {
+          console.log(`⚠️ Failed to initialize default data in Redis for ${key}`);
+        }
+      } else {
+        console.log(`📝 Redis already initialized, ${key} is empty - returning empty array`);
+        hasInitializedDefaults = true;
+      }
     } else {
-      console.log(`⚠️ Failed to initialize default data in Redis for ${key}`);
+      console.log(`📝 Key ${key} not found in Redis, returning empty array (not reinitializing)`);
     }
-    return defaultValue;
+    
+    return [];
   } catch (error) {
     console.error(`❌ Failed to get from Redis (${key}):`, error);
-    return defaultValue;
+    return [];
   }
 }
 
@@ -183,6 +229,31 @@ async function deleteFromRedis(key: string) {
   }
 }
 
+// Clear all data function
+async function clearAllData() {
+  try {
+    const connected = await ensureRedisConnection();
+    if (!connected) {
+      console.log('⚠️ Redis not connected, cannot clear data');
+      return false;
+    }
+
+    await Promise.all([
+      redisClient.del(REDIS_KEYS.EXPENSES),
+      redisClient.del(REDIS_KEYS.CATEGORIES),
+      redisClient.del(REDIS_KEYS.BUDGETS),
+      redisClient.del(REDIS_KEYS.INITIALIZED)
+    ]);
+    
+    hasInitializedDefaults = false;
+    console.log('🗑️ All data cleared from Redis');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to clear data:', error);
+    return false;
+  }
+}
+
 export default async function handler(req: any, res: any) {
   try {
     const { method, url } = req;
@@ -192,6 +263,16 @@ export default async function handler(req: any, res: any) {
     console.log('URL:', url);
     console.log('Redis Status:', redisClient ? (redisClient.isReady ? 'Connected' : 'Connecting') : 'Not initialized');
     console.log('================');
+
+    // Handle clear all data route
+    if (url.includes('/clear') && method === 'POST') {
+      console.log('🗑️ Clearing all data...');
+      const cleared = await clearAllData();
+      return res.status(200).json({ 
+        message: cleared ? "All data cleared" : "Failed to clear data",
+        success: cleared
+      });
+    }
 
     // Handle all routes with Redis storage
     if (url.includes('/categories') || url.includes('/categories/')) {
