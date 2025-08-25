@@ -1,10 +1,32 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { createClient } from 'redis';
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Redis configuration
+const redisClient = createClient({
+  url: process.env.REDIS_URL || 'redis://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379',
+  socket: {
+    tls: true,
+    rejectUnauthorized: false
+  }
+});
+
+// Connect to Redis
+redisClient.on('error', (err) => {
+  console.error('Redis Client Error:', err);
+});
+
+redisClient.on('connect', () => {
+  console.log('✅ Connected to Redis');
+});
+
+// Make Redis client available globally
+(global as any).redisClient = redisClient;
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -36,24 +58,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// For Vercel serverless deployment
-if (process.env.NODE_ENV === "production") {
-  // Production: Set up routes and serve static files
-  // Note: In serverless, we can't use async/await during module initialization
-  // So we'll set up routes synchronously
+// Set up routes and start server
+(async () => {
   try {
-    // Set up routes without async
-    registerRoutes(app).then(() => {
-      serveStatic(app);
-    }).catch(err => {
-      console.error('Failed to set up routes:', err);
-    });
-  } catch (err) {
-    console.error('Failed to set up routes:', err);
-  }
-} else {
-  // Development: Set up Vite dev server
-  (async () => {
+    // Connect to Redis first
+    await redisClient.connect();
+    
     const server = await registerRoutes(app);
     
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -61,25 +71,30 @@ if (process.env.NODE_ENV === "production") {
       const message = err.message || "Internal Server Error";
 
       res.status(status).json({ message });
-      throw err;
+      console.error('Error:', err);
     });
 
-    await setupVite(app, server);
+    // In production (Render), just serve the API
+    if (process.env.NODE_ENV === "production") {
+      log('Running in production mode - API only');
+    } else {
+      // In development, set up Vite dev server
+      await setupVite(app, server);
+    }
 
-    // ALWAYS serve the app on the port specified in the environment variable PORT
-    // Other ports are firewalled. Default to 5000 if not specified.
-    // this serves both the API and the client.
-    // It is the only port that is not firewalled.
+    // Start the server
     const port = parseInt(process.env.PORT || '5000', 10);
     server.listen({
       port,
       host: "0.0.0.0",
-      reusePort: true,
     }, () => {
-      log(`serving on port ${port}`);
+      log(`🚀 Server running on port ${port}`);
+      log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+      log(`🌐 API available at: http://localhost:${port}/api`);
+      log(`🔴 Redis connected: ${redisClient.isReady ? 'Yes' : 'No'}`);
     });
-  })();
-}
-
-// Export for Vercel
-export default app;
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+})();
