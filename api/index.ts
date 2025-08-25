@@ -1,11 +1,38 @@
-// Simple working API for BudgetBuddy with data persistence
-let storedExpenses = [
-  { id: "exp1", description: "Grocery shopping", amount: 85.50, categoryId: "cat1", date: "2024-01-15" },
-  { id: "exp2", description: "Gas station", amount: 45.00, categoryId: "cat2", date: "2024-01-14" },
-  { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
-];
+import { createClient } from 'redis';
 
-let storedCategories = [
+// Redis configuration
+const redisClient = createClient({
+  url: process.env.REDIS_URL || 'redis://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379',
+  socket: {
+    tls: true,
+    rejectUnauthorized: false
+  }
+});
+
+// Initialize Redis connection
+let isRedisConnected = false;
+
+async function ensureRedisConnection() {
+  if (!isRedisConnected) {
+    try {
+      await redisClient.connect();
+      isRedisConnected = true;
+      console.log('✅ Redis connected successfully');
+    } catch (error) {
+      console.error('❌ Failed to connect to Redis:', error);
+    }
+  }
+}
+
+// Redis data keys
+const REDIS_KEYS = {
+  EXPENSES: 'budgetbuddy:expenses',
+  CATEGORIES: 'budgetbuddy:categories',
+  BUDGETS: 'budgetbuddy:budgets'
+};
+
+// Default data
+const defaultCategories = [
   { id: "cat1", name: "Groceries", color: "#2563EB" },
   { id: "cat2", name: "Transportation", color: "#059669" },
   { id: "cat3", name: "Utilities", color: "#DC2626" },
@@ -16,7 +43,7 @@ let storedCategories = [
   { id: "cat8", name: "Savings", color: "#10B981" }
 ];
 
-let storedBudgets = [
+const defaultBudgets = [
   { id: "budget1", categoryId: "cat1", amount: 800, period: "monthly" },
   { id: "budget2", categoryId: "cat2", amount: 200, period: "monthly" },
   { id: "budget3", categoryId: "cat3", amount: 400, period: "monthly" },
@@ -27,6 +54,39 @@ let storedBudgets = [
   { id: "budget8", categoryId: "cat8", amount: 1000, period: "monthly" }
 ];
 
+const defaultExpenses = [
+  { id: "exp1", description: "Grocery shopping", amount: 85.50, categoryId: "cat1", date: "2024-01-15" },
+  { id: "exp2", description: "Gas station", amount: 45.00, categoryId: "cat2", date: "2024-01-14" },
+  { id: "exp3", description: "Movie tickets", amount: 32.00, categoryId: "cat4", date: "2024-01-13" }
+];
+
+// Redis helper functions
+async function getFromRedis(key: string, defaultValue: any[] = []) {
+  try {
+    await ensureRedisConnection();
+    const data = await redisClient.get(key);
+    if (data) {
+      return JSON.parse(data);
+    }
+    // Initialize with default data if key doesn't exist
+    await setToRedis(key, defaultValue);
+    return defaultValue;
+  } catch (error) {
+    console.error(`Failed to get from Redis (${key}):`, error);
+    return defaultValue;
+  }
+}
+
+async function setToRedis(key: string, data: any) {
+  try {
+    await ensureRedisConnection();
+    await redisClient.set(key, JSON.stringify(data));
+    console.log(`✅ Data saved to Redis: ${key}`);
+  } catch (error) {
+    console.error(`Failed to save to Redis (${key}):`, error);
+  }
+}
+
 export default async function handler(req: any, res: any) {
   try {
     const { method, url } = req;
@@ -34,14 +94,14 @@ export default async function handler(req: any, res: any) {
     console.log('=== API CALL ===');
     console.log('Method:', method);
     console.log('URL:', url);
-    console.log('Headers:', req.headers);
     console.log('================');
     
-    // Handle all routes simply
+    // Handle all routes with Redis storage
     if (url.includes('/categories') || url.includes('/categories/')) {
       console.log('Handling categories request');
       if (method === 'GET') {
-        return res.status(200).json(storedCategories);
+        const categories = await getFromRedis(REDIS_KEYS.CATEGORIES, defaultCategories);
+        return res.status(200).json(categories);
       }
       if (method === 'POST') {
         return res.status(201).json({ message: "Category created" });
@@ -51,7 +111,8 @@ export default async function handler(req: any, res: any) {
     if (url.includes('/budgets') || url.includes('/budgets/')) {
       console.log('Handling budgets request');
       if (method === 'GET') {
-        return res.status(200).json(storedBudgets);
+        const budgets = await getFromRedis(REDIS_KEYS.BUDGETS, defaultBudgets);
+        return res.status(200).json(budgets);
       }
       if (method === 'POST') {
         return res.status(201).json({ message: "Budget created" });
@@ -61,8 +122,9 @@ export default async function handler(req: any, res: any) {
     if (url.includes('/expenses') || url.includes('/expenses/')) {
       console.log('Handling expenses request');
       if (method === 'GET') {
-        console.log('Returning stored expenses:', storedExpenses);
-        return res.status(200).json(storedExpenses);
+        const expenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
+        console.log('Returning expenses from Redis:', expenses.length);
+        return res.status(200).json(expenses);
       }
       if (method === 'POST') {
         console.log('Creating new expense:', req.body);
@@ -74,16 +136,27 @@ export default async function handler(req: any, res: any) {
           date: req.body.date
         };
         
-        storedExpenses.push(newExpense);
-        console.log('Expense added to storage. Total expenses:', storedExpenses.length);
+        // Get current expenses from Redis
+        const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
+        currentExpenses.push(newExpense);
+        
+        // Save updated expenses to Redis
+        await setToRedis(REDIS_KEYS.EXPENSES, currentExpenses);
+        console.log('✅ Expense saved to Redis. Total expenses:', currentExpenses.length);
         
         return res.status(201).json(newExpense);
       }
       if (method === 'DELETE') {
         console.log('Deleting expense:', req.body);
         const expenseId = req.body.id;
-        storedExpenses = storedExpenses.filter(exp => exp.id !== expenseId);
-        console.log('Expense deleted from storage. Total expenses:', storedExpenses.length);
+        
+        // Get current expenses from Redis
+        const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses);
+        const updatedExpenses = currentExpenses.filter(exp => exp.id !== expenseId);
+        
+        // Save updated expenses to Redis
+        await setToRedis(REDIS_KEYS.EXPENSES, updatedExpenses);
+        console.log('✅ Expense deleted from Redis. Total expenses:', updatedExpenses.length);
         
         return res.status(200).json({ message: "Expense deleted" });
       }
@@ -91,12 +164,16 @@ export default async function handler(req: any, res: any) {
     
     if (url.includes('/dashboard') || url.includes('/dashboard/')) {
       console.log('Handling dashboard request');
-      const dashboardData = {
-        categories: storedCategories,
-        budgets: storedBudgets,
-        expenses: storedExpenses
-      };
-      console.log('Returning dashboard data with', storedExpenses.length, 'expenses');
+      
+      // Get all data from Redis
+      const [categories, budgets, expenses] = await Promise.all([
+        getFromRedis(REDIS_KEYS.CATEGORIES, defaultCategories),
+        getFromRedis(REDIS_KEYS.BUDGETS, defaultBudgets),
+        getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses)
+      ]);
+      
+      const dashboardData = { categories, budgets, expenses };
+      console.log('✅ Dashboard data from Redis - Expenses:', expenses.length);
       return res.status(200).json(dashboardData);
     }
     
@@ -112,16 +189,23 @@ export default async function handler(req: any, res: any) {
     
     // Default response
     console.log('No specific route matched, returning default data');
+    const [categories, budgets, expenses] = await Promise.all([
+      getFromRedis(REDIS_KEYS.CATEGORIES, defaultCategories),
+      getFromRedis(REDIS_KEYS.BUDGETS, defaultBudgets),
+      getFromRedis(REDIS_KEYS.EXPENSES, defaultExpenses)
+    ]);
+    
     return res.status(200).json({ 
-      message: "API working", 
-      categories: storedCategories, 
-      budgets: storedBudgets, 
-      expenses: storedExpenses,
+      message: "API working with Redis storage", 
+      categories, 
+      budgets, 
+      expenses,
       debug: {
         method,
         url,
         timestamp: new Date().toISOString(),
-        totalExpenses: storedExpenses.length
+        totalExpenses: expenses.length,
+        redisConnected: isRedisConnected
       }
     });
     
