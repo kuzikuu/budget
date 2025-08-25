@@ -176,6 +176,36 @@ export default async function handler(req: any, res: any) {
     console.log('Redis Status:', redisClient ? (redisClient.isReady ? 'Connected' : 'Connecting') : 'Not initialized');
     console.log('================');
 
+    // Handle debug route to check Redis contents
+    if (url.includes('/debug') && method === 'GET') {
+      console.log('🔍 Debug route - checking Redis contents...');
+      try {
+        const connected = await ensureRedisConnection();
+        if (!connected) {
+          return res.status(500).json({ message: "Redis not connected" });
+        }
+
+        const [categories, budgets, expenses] = await Promise.all([
+          redisClient.get(REDIS_KEYS.CATEGORIES),
+          redisClient.get(REDIS_KEYS.BUDGETS),
+          redisClient.get(REDIS_KEYS.EXPENSES)
+        ]);
+
+        return res.status(200).json({
+          message: "Redis debug info",
+          categories: categories ? JSON.parse(categories) : null,
+          budgets: budgets ? JSON.parse(budgets) : null,
+          expenses: expenses ? JSON.parse(expenses) : null,
+          categoriesLength: categories ? JSON.parse(categories).length : 0,
+          budgetsLength: budgets ? JSON.parse(budgets).length : 0,
+          expensesLength: expenses ? JSON.parse(expenses).length : 0
+        });
+      } catch (error) {
+        console.error('❌ Debug route error:', error);
+        return res.status(500).json({ message: "Debug error", error: error.message });
+      }
+    }
+
     // Handle all routes with Redis storage
     if (url.includes('/categories') || url.includes('/categories/')) {
       console.log('📋 Handling categories request');
@@ -203,7 +233,8 @@ export default async function handler(req: any, res: any) {
       console.log('💸 Handling expenses request');
       if (method === 'GET') {
         const expenses = await getFromRedis(REDIS_KEYS.EXPENSES);
-        console.log('📊 Returning expenses:', expenses.length);
+        console.log(`📊 Returning expenses: ${expenses.length}`);
+        console.log(`📊 Expense details:`, expenses);
         return res.status(200).json(expenses);
       }
       if (method === 'POST') {
@@ -218,11 +249,21 @@ export default async function handler(req: any, res: any) {
 
         // Get current expenses from Redis
         const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES);
+        console.log(`📊 Current expenses before adding: ${currentExpenses.length}`);
+        
+        // Add new expense
         currentExpenses.push(newExpense);
+        console.log(`📊 Expenses after adding: ${currentExpenses.length}`);
 
         // Try to save to Redis
         const saved = await setToRedis(REDIS_KEYS.EXPENSES, currentExpenses);
         console.log(`💾 Expense ${saved ? 'saved to Redis' : 'saved locally'}. Total: ${currentExpenses.length}`);
+
+        // Verify the save by reading back from Redis
+        if (saved) {
+          const verifyExpenses = await getFromRedis(REDIS_KEYS.EXPENSES);
+          console.log(`🔍 Verification - expenses in Redis after save: ${verifyExpenses.length}`);
+        }
 
         return res.status(201).json(newExpense);
       }
