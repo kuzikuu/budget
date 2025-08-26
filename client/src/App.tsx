@@ -44,7 +44,7 @@ function App() {
     setIsLoading(true);
     try {
       console.log('🔌 Fetching data from Redis API...');
-      const response = await fetch('/api/dashboard');
+      const response = await fetch('/api/dashboard/default-household');
       console.log('📡 API Response status:', response.status);
 
       if (!response.ok) {
@@ -108,7 +108,7 @@ function App() {
 
     try {
       console.log('💾 Saving expense to Redis...');
-      const response = await fetch('/api/expenses', {
+      const response = await fetch('/api/expenses/default-household', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(expense)
@@ -145,7 +145,7 @@ function App() {
   const deleteExpense = async (id: string) => {
     try {
       console.log('🗑️ Deleting expense from Redis...');
-      const response = await fetch('/api/expenses', {
+      const response = await fetch('/api/expenses/default-household', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
