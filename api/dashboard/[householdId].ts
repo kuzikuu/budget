@@ -1,138 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from 'redis';
 
-// Redis configuration
-let redisClient: any = null;
-let isConnecting = false;
-let lastConnectionAttempt = 0;
-const CONNECTION_COOLDOWN = 5000;
-
-// Initialize Redis client
-function createRedisClient() {
-  if (redisClient) return redisClient;
-  
-  redisClient = createClient({
-    url: process.env.REDIS_URL || 'redis://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379',
-    socket: {
-      tls: true,
-      rejectUnauthorized: false,
-      connectTimeout: 10000
-    }
-  });
-
-  redisClient.on('error', (err: any) => {
-    console.error('Redis Client Error:', err);
-    redisClient = null;
-  });
-
-  redisClient.on('connect', () => {
-    console.log('✅ Redis connected successfully');
-  });
-
-  redisClient.on('ready', () => {
-    console.log('✅ Redis ready for commands');
-  });
-
-  redisClient.on('end', () => {
-    console.log('❌ Redis connection ended');
-    redisClient = null;
-  });
-
-  return redisClient;
-}
-
-// Smart Redis connection management
-async function ensureRedisConnection() {
-  const now = Date.now();
-  
-  if (isConnecting) {
-    console.log('⏳ Redis connection already in progress, waiting...');
-    return false;
-  }
-  
-  if (now - lastConnectionAttempt < CONNECTION_COOLDOWN) {
-    console.log('⏳ Redis connection cooldown, using fallback');
-    return false;
-  }
-  
-  if (redisClient && redisClient.isReady) {
-    return true;
-  }
-  
-  try {
-    isConnecting = true;
-    lastConnectionAttempt = now;
-    
-    console.log('🔌 Attempting Redis connection...');
-    const client = createRedisClient();
-    await client.connect();
-    
-    isConnecting = false;
-    return true;
-  } catch (error) {
-    console.error('❌ Redis connection failed:', error);
-    isConnecting = false;
-    redisClient = null;
-    return false;
-  }
-}
-
-// Redis operations
-async function getFromRedis(key: string, defaultValue: any[] = []) {
-  try {
-    const connected = await ensureRedisConnection();
-    if (!connected) {
-      console.log(`⚠️ Redis not connected, using default data for ${key}`);
-      return defaultValue;
-    }
-
-    const data = await redisClient.get(key);
-    if (data) {
-      const parsed = JSON.parse(data);
-      console.log(`✅ Retrieved from Redis: ${key} (${parsed.length} items)`);
-      return parsed;
-    }
-
-    // For categories and budgets, initialize with defaults if not found
-    // For expenses, always return empty array
-    if (key === 'budgetbuddy:expenses') {
-      console.log(`📝 Expenses key not found, returning empty array (no default expenses)`);
-      return [];
-    } else {
-      console.log(`📝 Initializing ${key} with default data`);
-      const saved = await setToRedis(key, defaultValue);
-      if (saved) {
-        console.log(`✅ Default data initialized in Redis for ${key}`);
-      } else {
-        console.log(`⚠️ Failed to initialize default data in Redis for ${key}`);
-      }
-      return defaultValue;
-    }
-  } catch (error) {
-    console.error(`❌ Failed to get from Redis (${key}):`, error);
-    return defaultValue;
-  }
-}
-
-async function setToRedis(key: string, data: any) {
-  try {
-    const connected = await ensureRedisConnection();
-    if (!connected) {
-      console.log(`⚠️ Redis not connected, skipping save for ${key}`);
-      return false;
-    }
-
-    await redisClient.set(key, JSON.stringify(data));
-    console.log(`✅ Data saved to Redis: ${key} (${data.length} items)`);
-    return true;
-  } catch (error) {
-    console.error(`❌ Failed to save to Redis (${key}):`, error);
-    return false;
-  }
-}
-
-// Default categories and budgets (but NO default expenses)
-const defaultCategories = [
+// Static categories and budgets (no database needed)
+const categories = [
   { id: "cat1", name: "Groceries", color: "#2563EB" },
   { id: "cat2", name: "Transportation", color: "#059669" },
   { id: "cat3", name: "Utilities", color: "#DC2626" },
@@ -143,7 +13,7 @@ const defaultCategories = [
   { id: "cat8", name: "Savings", color: "#10B981" }
 ];
 
-const defaultBudgets = [
+const budgets = [
   { id: "budget1", categoryId: "cat1", amount: 800, period: "monthly" },
   { id: "budget2", categoryId: "cat2", amount: 200, period: "monthly" },
   { id: "budget3", categoryId: "cat3", amount: 400, period: "monthly" },
@@ -154,40 +24,83 @@ const defaultBudgets = [
   { id: "budget8", categoryId: "cat8", amount: 1000, period: "monthly" }
 ];
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { method } = req;
-  const { householdId } = req.query;
+// Simple Redis client for expenses only
+let redisClient: any = null;
 
-  console.log('=== DASHBOARD API CALL ===');
-  console.log('Method:', method);
-  console.log('Household ID:', householdId);
-  console.log('Redis Status:', redisClient ? (redisClient.isReady ? 'Connected' : 'Connecting') : 'Not initialized');
-  console.log('==========================');
-
-  if (method !== 'GET') {
-    return res.status(405).json({ message: 'Method not allowed' });
+async function getRedisClient() {
+  if (redisClient && redisClient.isReady) {
+    return redisClient;
   }
 
   try {
-    console.log('📊 Handling dashboard request');
+    console.log('🔌 Creating Redis connection for dashboard...');
+    
+    const redisUrl = process.env.REDIS_URL || 'redis://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379';
+    
+    redisClient = createClient({
+      url: redisUrl,
+      socket: {
+        tls: true,
+        rejectUnauthorized: false,
+        connectTimeout: 5000
+      }
+    });
 
-    // Get all data from Redis
-    const [categories, budgets, expenses] = await Promise.all([
-      getFromRedis('budgetbuddy:categories', defaultCategories),
-      getFromRedis('budgetbuddy:budgets', defaultBudgets),
-      getFromRedis('budgetbuddy:expenses')
-    ]);
+    redisClient.on('error', (err: any) => {
+      console.error('❌ Redis error:', err.message);
+      redisClient = null;
+    });
 
-    const dashboardData = { categories, budgets, expenses };
-    console.log(`✅ Dashboard data - Categories: ${categories.length}, Budgets: ${budgets.length}, Expenses: ${expenses.length}`);
+    await redisClient.connect();
+    console.log('✅ Redis connected for dashboard');
+    return redisClient;
+    
+  } catch (error) {
+    console.error('❌ Redis connection failed:', error.message);
+    redisClient = null;
+    return null;
+  }
+}
+
+async function getExpenses() {
+  try {
+    const client = await getRedisClient();
+    if (!client) return [];
+    
+    const data = await client.get('budgetbuddy:expenses');
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('❌ Failed to get expenses:', error.message);
+    return [];
+  }
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    console.log('📊 Dashboard request - getting expenses from Redis...');
+    
+    const expenses = await getExpenses();
+    console.log(`📊 Found ${expenses.length} expenses in Redis`);
+    
+    const dashboardData = { 
+      categories, 
+      budgets, 
+      expenses 
+    };
+    
     return res.status(200).json(dashboardData);
 
   } catch (error) {
-    console.error('💥 Dashboard API Error:', error);
-    res.status(500).json({
-      message: 'Server error',
-      error: error.message,
-      stack: error.stack
+    console.error('💥 Dashboard API Error:', error.message);
+    // Return static data even if Redis fails
+    return res.status(200).json({ 
+      categories, 
+      budgets, 
+      expenses: [] 
     });
   }
 }

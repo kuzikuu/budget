@@ -1,171 +1,93 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from 'redis';
 
-// Redis configuration
+// Simple Redis client - one per function instance
 let redisClient: any = null;
-let isConnecting = false;
-let lastConnectionAttempt = 0;
-const CONNECTION_COOLDOWN = 5000;
 
-// Initialize Redis client
-function createRedisClient() {
-  if (redisClient) return redisClient;
-  
-  redisClient = createClient({
-    url: process.env.REDIS_URL || 'redis://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379',
-    socket: {
-      tls: true,
-      rejectUnauthorized: false,
-      connectTimeout: 10000
-    }
-  });
-
-  redisClient.on('error', (err: any) => {
-    console.error('Redis Client Error:', err);
-    redisClient = null;
-  });
-
-  redisClient.on('connect', () => {
-    console.log('✅ Redis connected successfully');
-  });
-
-  redisClient.on('ready', () => {
-    console.log('✅ Redis ready for commands');
-  });
-
-  redisClient.on('end', () => {
-    console.log('❌ Redis connection ended');
-    redisClient = null;
-  });
-
-  return redisClient;
-}
-
-// Smart Redis connection management
-async function ensureRedisConnection() {
-  const now = Date.now();
-  
-  if (isConnecting) {
-    console.log('⏳ Redis connection already in progress, waiting...');
-    return false;
-  }
-  
-  if (now - lastConnectionAttempt < CONNECTION_COOLDOWN) {
-    console.log('⏳ Redis connection cooldown, using fallback');
-    return false;
-  }
-  
+async function getRedisClient() {
   if (redisClient && redisClient.isReady) {
-    return true;
+    return redisClient;
   }
-  
+
   try {
-    isConnecting = true;
-    lastConnectionAttempt = now;
+    console.log('🔌 Creating new Redis connection...');
     
-    console.log('🔌 Attempting Redis connection...');
-    const client = createRedisClient();
-    await client.connect();
+    // Use environment variable or fallback
+    const redisUrl = process.env.REDIS_URL || 'redis://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379';
     
-    isConnecting = false;
-    return true;
+    redisClient = createClient({
+      url: redisUrl,
+      socket: {
+        tls: true,
+        rejectUnauthorized: false,
+        connectTimeout: 5000,
+        keepAlive: 5000
+      }
+    });
+
+    // Simple event handlers
+    redisClient.on('error', (err: any) => {
+      console.error('❌ Redis error:', err.message);
+      redisClient = null;
+    });
+
+    redisClient.on('connect', () => {
+      console.log('✅ Redis connected');
+    });
+
+    await redisClient.connect();
+    console.log('✅ Redis ready');
+    return redisClient;
+    
   } catch (error) {
-    console.error('❌ Redis connection failed:', error);
-    isConnecting = false;
+    console.error('❌ Redis connection failed:', error.message);
     redisClient = null;
-    return false;
+    throw error;
   }
 }
 
-// Redis operations
-async function getFromRedis(key: string) {
+// Simple Redis operations
+async function getExpenses() {
   try {
-    const connected = await ensureRedisConnection();
-    if (!connected) {
-      console.log(`⚠️ Redis not connected, using empty array for ${key}`);
-      return [];
-    }
-
-    const data = await redisClient.get(key);
-    if (data) {
-      const parsed = JSON.parse(data);
-      console.log(`✅ Retrieved from Redis: ${key} (${parsed.length} items)`);
-      return parsed;
-    }
-
-    console.log(`📝 Key not found in Redis: ${key}, returning empty array`);
-    return [];
+    const client = await getRedisClient();
+    const data = await client.get('budgetbuddy:expenses');
+    return data ? JSON.parse(data) : [];
   } catch (error) {
-    console.error(`❌ Failed to get from Redis (${key}):`, error);
+    console.error('❌ Failed to get expenses:', error.message);
     return [];
   }
 }
 
-async function setToRedis(key: string, data: any) {
+async function saveExpenses(expenses: any[]) {
   try {
-    console.log(`🔌 setToRedis called for key: ${key}`);
-    console.log(`🔌 Data to save:`, data);
-    console.log(`🔌 Data length: ${data.length}`);
-    
-    const connected = await ensureRedisConnection();
-    console.log(`🔌 Redis connection status: ${connected}`);
-    
-    if (!connected) {
-      console.log(`⚠️ Redis not connected, skipping save for ${key}`);
-      return false;
-    }
-
-    console.log(`🔌 About to save to Redis key: ${key}`);
-    const dataToSave = JSON.stringify(data);
-    console.log(`🔌 JSON string length: ${dataToSave.length}`);
-    
-    await redisClient.set(key, dataToSave);
-    console.log(`✅ Data saved to Redis: ${key} (${data.length} items)`);
-    
-    // Double-check by reading it back immediately
-    console.log(`🔍 Double-checking save by reading back...`);
-    const verifyData = await redisClient.get(key);
-    console.log(`🔍 Verification - raw data from Redis:`, verifyData);
-    if (verifyData) {
-      const parsed = JSON.parse(verifyData);
-      console.log(`🔍 Verification - parsed data:`, parsed);
-      console.log(`🔍 Verification - parsed length: ${parsed.length}`);
-    }
-    
+    const client = await getRedisClient();
+    await client.set('budgetbuddy:expenses', JSON.stringify(expenses));
+    console.log(`✅ Saved ${expenses.length} expenses to Redis`);
     return true;
   } catch (error) {
-    console.error(`❌ Failed to save to Redis (${key}):`, error);
-    console.error(`❌ Error details:`, error.message);
-    console.error(`❌ Error stack:`, error.stack);
+    console.error('❌ Failed to save expenses:', error.message);
     return false;
   }
 }
-
-const REDIS_KEYS = {
-  EXPENSES: 'budgetbuddy:expenses'
-};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { method } = req;
-  const { householdId } = req.query;
-
-  console.log('=== EXPENSES API CALL ===');
-  console.log('Method:', method);
-  console.log('Household ID:', householdId);
-  console.log('Redis Status:', redisClient ? (redisClient.isReady ? 'Connected' : 'Connecting') : 'Not initialized');
-  console.log('========================');
+  
+  console.log(`=== EXPENSES API: ${method} ===`);
+  console.log('Body:', req.body);
+  console.log('Query:', req.query);
 
   try {
     if (method === 'GET') {
-      console.log('📊 Getting expenses from Redis...');
-      const expenses = await getFromRedis(REDIS_KEYS.EXPENSES);
-      console.log(`📊 Returning expenses: ${expenses.length}`);
-      console.log(`📊 Expense details:`, expenses);
+      console.log('📊 Getting expenses...');
+      const expenses = await getExpenses();
+      console.log(`📊 Returning ${expenses.length} expenses`);
       return res.status(200).json(expenses);
     }
 
     if (method === 'POST') {
-      console.log('➕ Creating new expense:', req.body);
+      console.log('➕ Adding expense:', req.body);
+      
       const newExpense = {
         id: `exp${Date.now()}`,
         description: req.body.description,
@@ -174,70 +96,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         date: req.body.date
       };
 
-      console.log('🔍 New expense object:', newExpense);
-
-      // Get current expenses from Redis
-      console.log('📥 Getting current expenses from Redis...');
-      const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES);
-      console.log(`📊 Current expenses before adding: ${currentExpenses.length}`);
-      console.log('📊 Current expenses array:', currentExpenses);
+      // Get current expenses
+      const currentExpenses = await getExpenses();
+      console.log(`📊 Current: ${currentExpenses.length}, Adding: 1`);
       
       // Add new expense
       currentExpenses.push(newExpense);
-      console.log(`📊 Expenses after adding: ${currentExpenses.length}`);
-      console.log('📊 Updated expenses array:', currentExpenses);
-
-      // Try to save to Redis
-      console.log('💾 Attempting to save to Redis...');
-      const saved = await setToRedis(REDIS_KEYS.EXPENSES, currentExpenses);
-      console.log(`💾 Expense ${saved ? 'saved to Redis' : 'saved locally'}. Total: ${currentExpenses.length}`);
-
-      // Verify the save by reading back from Redis
+      
+      // Save to Redis
+      const saved = await saveExpenses(currentExpenses);
+      
       if (saved) {
-        console.log('🔍 Verifying save by reading back from Redis...');
-        const verifyExpenses = await getFromRedis(REDIS_KEYS.EXPENSES);
-        console.log(`🔍 Verification - expenses in Redis after save: ${verifyExpenses.length}`);
-        console.log('🔍 Verification - expenses array:', verifyExpenses);
+        console.log('✅ Expense saved successfully');
+        return res.status(201).json(newExpense);
       } else {
-        console.log('❌ Save failed - not verifying');
+        console.log('❌ Failed to save expense');
+        return res.status(500).json({ error: 'Failed to save expense' });
       }
-
-      return res.status(201).json(newExpense);
     }
 
     if (method === 'DELETE') {
-      console.log('🗑️ Deleting expense:', req.body);
-      const expenseId = req.body.id;
-
-      // Get current expenses from Redis
-      const currentExpenses = await getFromRedis(REDIS_KEYS.EXPENSES);
-      console.log(`📊 Current expenses before delete: ${currentExpenses.length}`);
+      console.log('🗑️ Deleting expense:', req.body.id);
       
-      // Filter out the expense to delete
-      const updatedExpenses = currentExpenses.filter(exp => exp.id !== expenseId);
-      console.log(`📊 Expenses after delete: ${updatedExpenses.length}`);
-
-      // Save updated expenses to Redis
-      const saved = await setToRedis(REDIS_KEYS.EXPENSES, updatedExpenses);
-      console.log(`💾 Expense ${saved ? 'deleted from Redis' : 'deleted locally'}. Total: ${updatedExpenses.length}`);
-
-      // Return the updated expense list so frontend can update immediately
-      return res.status(200).json({ 
-        message: "Expense deleted",
-        expenses: updatedExpenses,
-        deletedId: expenseId
-      });
+      const currentExpenses = await getExpenses();
+      const updatedExpenses = currentExpenses.filter(exp => exp.id !== req.body.id);
+      
+      const saved = await saveExpenses(updatedExpenses);
+      
+      if (saved) {
+        console.log('✅ Expense deleted successfully');
+        return res.status(200).json({ message: 'Expense deleted', expenses: updatedExpenses });
+      } else {
+        console.log('❌ Failed to delete expense');
+        return res.status(500).json({ error: 'Failed to delete expense' });
+      }
     }
 
-    // Method not allowed
-    res.status(405).json({ message: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
 
   } catch (error) {
-    console.error('💥 Expenses API Error:', error);
-    res.status(500).json({
-      message: 'Server error',
-      error: error.message,
-      stack: error.stack
-    });
+    console.error('💥 API Error:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
