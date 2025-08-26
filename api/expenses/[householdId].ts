@@ -1,4 +1,3 @@
-import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from 'redis';
 
 // Simple Redis client - one per function instance
@@ -70,72 +69,80 @@ async function saveExpenses(expenses: any[]) {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { method } = req;
+// Modern Vercel Functions API
+export async function GET(request: Request) {
+  console.log('📊 GET expenses request');
   
-  console.log(`=== EXPENSES API: ${method} ===`);
-  console.log('Body:', req.body);
-  console.log('Query:', req.query);
-
   try {
-    if (method === 'GET') {
-      console.log('📊 Getting expenses...');
-      const expenses = await getExpenses();
-      console.log(`📊 Returning ${expenses.length} expenses`);
-      return res.status(200).json(expenses);
-    }
-
-    if (method === 'POST') {
-      console.log('➕ Adding expense:', req.body);
-      
-      const newExpense = {
-        id: `exp${Date.now()}`,
-        description: req.body.description,
-        amount: parseFloat(req.body.amount),
-        categoryId: req.body.categoryId,
-        date: req.body.date
-      };
-
-      // Get current expenses
-      const currentExpenses = await getExpenses();
-      console.log(`📊 Current: ${currentExpenses.length}, Adding: 1`);
-      
-      // Add new expense
-      currentExpenses.push(newExpense);
-      
-      // Save to Redis
-      const saved = await saveExpenses(currentExpenses);
-      
-      if (saved) {
-        console.log('✅ Expense saved successfully');
-        return res.status(201).json(newExpense);
-      } else {
-        console.log('❌ Failed to save expense');
-        return res.status(500).json({ error: 'Failed to save expense' });
-      }
-    }
-
-    if (method === 'DELETE') {
-      console.log('🗑️ Deleting expense:', req.body.id);
-      
-      const currentExpenses = await getExpenses();
-      const updatedExpenses = currentExpenses.filter(exp => exp.id !== req.body.id);
-      
-      const saved = await saveExpenses(updatedExpenses);
-      
-      if (saved) {
-        console.log('✅ Expense deleted successfully');
-        return res.status(200).json({ message: 'Expense deleted', expenses: updatedExpenses });
-      } else {
-        console.log('❌ Failed to delete expense');
-        return res.status(500).json({ error: 'Failed to delete expense' });
-      }
-    }
-
-    return res.status(405).json({ error: 'Method not allowed' });
-
+    const expenses = await getExpenses();
+    console.log(`📊 Returning ${expenses.length} expenses`);
+    
+    return Response.json(expenses);
   } catch (error) {
-    console.error('💥 API Error:', error.message);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('💥 GET Error:', error.message);
+    return Response.json({ error: 'Failed to get expenses' }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  console.log('➕ POST expense request');
+  
+  try {
+    const body = await request.json();
+    console.log('➕ Adding expense:', body);
+    
+    const newExpense = {
+      id: `exp${Date.now()}`,
+      description: body.description,
+      amount: parseFloat(body.amount),
+      categoryId: body.categoryId,
+      date: body.date
+    };
+
+    // Get current expenses
+    const currentExpenses = await getExpenses();
+    console.log(`📊 Current: ${currentExpenses.length}, Adding: 1`);
+    
+    // Add new expense
+    currentExpenses.push(newExpense);
+    
+    // Save to Redis
+    const saved = await saveExpenses(currentExpenses);
+    
+    if (saved) {
+      console.log('✅ Expense saved successfully');
+      return Response.json(newExpense, { status: 201 });
+    } else {
+      console.log('❌ Failed to save expense');
+      return Response.json({ error: 'Failed to save expense' }, { status: 500 });
+    }
+  } catch (error) {
+    console.error('💥 POST Error:', error.message);
+    return Response.json({ error: 'Invalid request' }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  console.log('🗑️ DELETE expense request');
+  
+  try {
+    const body = await request.json();
+    console.log('🗑️ Deleting expense:', body.id);
+    
+    const currentExpenses = await getExpenses();
+    const updatedExpenses = currentExpenses.filter(exp => exp.id !== body.id);
+    
+    const saved = await saveExpenses(updatedExpenses);
+    
+    if (saved) {
+      console.log('✅ Expense deleted successfully');
+      return Response.json({ message: 'Expense deleted', expenses: updatedExpenses });
+    } else {
+      console.log('❌ Failed to delete expense');
+      return Response.json({ error: 'Failed to delete expense' }, { status: 500 });
+    }
+  } catch (error) {
+    console.error('💥 DELETE Error:', error.message);
+    return Response.json({ error: 'Invalid request' }, { status: 400 });
   }
 }

@@ -1,4 +1,3 @@
-import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from 'redis';
 
 // Static categories and budgets (no database needed)
@@ -75,11 +74,8 @@ async function getExpenses() {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+// Modern Vercel Functions API
+export async function GET(request: Request) {
   try {
     console.log('📊 Dashboard request - getting expenses from Redis...');
     
@@ -92,12 +88,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       expenses 
     };
     
-    return res.status(200).json(dashboardData);
+    return Response.json(dashboardData);
 
   } catch (error) {
     console.error('💥 Dashboard API Error:', error.message);
     // Return static data even if Redis fails
-    return res.status(200).json({ 
+    return Response.json({ 
       categories, 
       budgets, 
       expenses: [] 
