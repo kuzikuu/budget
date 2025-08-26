@@ -11,7 +11,7 @@ async function getRedisClient() {
   try {
     console.log('🔌 Creating Redis connection for debug...');
     
-    const redisUrl = process.env.REDIS_URL || 'redis://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379';
+    const redisUrl = process.env.REDIS_URL || 'rediss://default:AeZMAAIncDE1MDk2ZGZjZDE3MGU0ZTc3YjExNmRhMzM3NjcyMDIyMXAxNTg5NTY@big-firefly-58956.upstash.io:6379';
     
     redisClient = createClient({
       url: redisUrl,
